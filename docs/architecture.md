@@ -38,34 +38,48 @@ The workflow is a Directed Acyclic Graph (DAG) managed by LangGraph.
     4.  **Ambiguity Resolution**: If multiple items are present, ask the user for clarification (optional interactive step) or infer based on crop/center.
 *   **Output**: Structured Product Query (e.g., `product_name: "Sony WH-1000XM5"`, `bounding_box: [100, 200, 300, 400]`, `context: "Amazon listing"`).
 
-### **Node 2: Discovery & Research (The "Runner")**
-*   **Input**: Structured Product Query.
+### **Node 2: Discovery Layer (The "Researcher" & "Explorer")**
+This phase runs two parallel agents to gather deep data on the target product AND finding broad market context.
+
+### **Node 2a: Product Researcher (The "Deep Dive")**
+*   **Input**: Structured Product Query (from Node 1).
+*   **Goal**: Gather comprehensive data on the *specific* product identified.
 *   **Agents**:
     *   **Search Agent**: Uses **Tavily API** to find the official product page and major retail listings.
-    *   **Social/Review Scout**: Uses **Tavily** and custom scrapers to find "Reddit threads", "YouTube reviews", and "RTings/Expert reviews" for this specific product.
-    *   **Price Checker**: Uses **SerpAPI** to look up current pricing across other vendors (Best Buy, Walmart, eBay) to compare with the screenshot.
+    *   **Social/Review Scout**: Uses **Tavily** to find "Reddit threads", "YouTube reviews", and "RTings/Expert reviews".
+    *   **Price Checker**: Uses **SerpAPI** to look up current pricing across vendors (Best Buy, Walmart, eBay).
 *   **Responsibilities**:
     1.  Identify exact product matches.
-    2.  Find competitors/alternatives if requested.
-    3.  Gather raw text of reviews and discussions.
-*   **Output**: Aggregated raw data (Product Specs, List of Review URLs/Content, Competitor Prices).
+    2.  Gather raw text of reviews and discussions for the main product.
+*   **Output**: Aggregated raw data (Product Specs, Review URLs, Competitor Prices for Main Item).
+
+### **Node 2b: Market Scout (The "Explorer")**
+*   **Input**: Structured Product Query + User Preferences (from State).
+*   **Goal**: Find relevant *alternatives* or *competitors* based on the user's needs.
+*   **Bahavior**:
+    1.  **Contextual Search**: If user values "price", search for "best budget alternative to [Product]". If "quality", search "better than [Product]".
+    2.  **Live Market Data**: Unlike a static database, this agent searches the live web for current "Best of 2026" lists and comparisons.
+*   **Responsibilities**:
+    1.  Identify 2-3 strong competitors.
+    2.  Fetch basic pricing and rating for these alternatives.
+*   **Output**: List of Alternative Candidates (Name, Price, Reason for selection).
 
 ### **Node 3: The Skeptic (Critique & Verification)**
-*   **Input**: Raw product data + Scraped Reviews.
+*   **Input**: Raw product data (Main Item) + Alternative Candidates (Scout).
 *   **Agent**: **Skeptic Agent** (Gemini 1.5 Pro).
 *   **Responsibilities**:
-    1.  **Fake Review Detection**: Analyze patterns in reviews (e.g., all 5 stars posted on same day).
-    2.  **Deal Verification**: Check if the "sale price" is actually a markup-then-discount tactic (price history analysis).
-    3.  **Hidden Flaws**: Specifically hunt for "broken", "failed", "customer support" keywords in Reddit threads.
-*   **Output**: Risk Report (e.g., "High likelihood of fake reviews on Amazon", "Price is average, not a deal").
+    1.  **Fake Review Detection**: Analyze patterns in reviews for the main product.
+    2.  **Deal Verification**: Check if the "sale price" is actually a tactic.
+    3.  **Cross-Exam**: Briefly check if the "Alternates" suggested by the Scout actually hold up to scrutiny or if they are just paid placement lists.
+*   **Output**: Risk Report (e.g., "High likelihood of fake reviews on Amazon", "Alternative X is actually discontinued").
 
 ### **Node 4: Analysis & Synthesis (The "Brain")**
-*   **Input**: Aggregated raw data + Risk Report + User Preferences.
+*   **Input**: Product Data + Contextual Scout Data + Risk Report.
 *   **Agent**: **Analyst Agent** (Gemini 1.5 Pro).
 *   **Responsibilities**:
-    1.  **Preference Matching**: Compare product features against user weights (Cost vs. Quality vs. Sustainability).
-    2.  **Context Integration**: Combine the "Skeptic" warnings with the "Runner" findings.
-    3.  **Alternative Scoring**: Score similar items found during research.
+    1.  **Preference Matching**: Compare product features against user weights.
+    2.  **Context Integration**: Combine the "Skeptic" warnings with the "Runner" and "Scout" findings.
+    3.  **Alternative Scoring**: Score the main item vs. the discovered alternatives.
 *   **Output**: Structured Analysis Object.
 
 ### **Node 5: Response Formulation (The "Speaker")**
