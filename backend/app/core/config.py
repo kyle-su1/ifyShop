@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     # Models
     MODEL_VISION: str = "gemini-2.0-flash"
     MODEL_REASONING: str = "gemini-2.0-flash"
+    MODEL_ANALYSIS: str = "gemini-2.0-flash"
+    MODEL_RESPONSE: str = "gemini-2.0-flash"  # Node 5 - Response Formulation
 
     class Config:
         env_file = ".env"

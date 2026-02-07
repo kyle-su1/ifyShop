@@ -134,13 +134,39 @@ This phase runs two parallel agents to gather deep data.
 *   **Output**: Structured Analysis Object with `recommended_product` and `alternatives_ranked`.
 
 ### **Node 5: Response Formulation (The "Speaker")**
-*   **Input**: Structured Analysis Object.
-*   **Model**: **Gemini 1.5 Flash** (`gemini-1.5-flash`).
-    > **Model Selection**: Uses the faster `gemini-1.5-flash` because this node focuses on **formatting** and **summarization** rather than complex reasoning. Flash provides ~3x faster response times.
+*   **Input**: Data from Node 3 (`risk_report`) + Node 4 (`analysis_object`, `alternatives_analysis`).
+*   **Model**: **Gemini 2.0 Flash** (`gemini-2.0-flash`) via `MODEL_RESPONSE` config.
+    > **Model Selection**: Uses the fast `gemini-2.0-flash` because this node focuses on **formatting** and **summarization** rather than complex reasoning.
 *   **Responsibilities**:
-    1.  **Final Recommendation**: Generate an empathetic, human-like summary.
-    2.  **Format Output**: JSON for frontend (Verdict, Pros/Cons, Pricing).
-*   **Output**: JSON Payload.
+    1.  **Main Product Analysis**: Detailed breakdown of the product user is viewing (summary, pros, cons, price analysis, community sentiment).
+    2.  **Alternative Suggestions**: For each alternative, provide a summary, pros/cons, and `why_consider` so users can decide for themselves.
+    3.  **Final Verdict**: Overall recommendation, but users can still choose based on individual product summaries.
+*   **Output**: JSON Payload with structure:
+    ```json
+    {
+      "main_product": {
+        "name": "Sony WH-1000XM5",
+        "compatibility_score": 85.5,
+        "summary": "Detailed analysis...",
+        "pros": ["Pro 1", "Pro 2"],
+        "cons": ["Con 1"],
+        "price_analysis": { "verdict": "Good value", "warnings": [] },
+        "community_sentiment": { "trust_level": "High", "summary": "...", "red_flags": [] }
+      },
+      "alternatives": [
+        {
+          "name": "Bose QuietComfort Ultra",
+          "compatibility_score": 78.2,
+          "summary": "Short description for user to decide...",
+          "pros": ["Key strength"],
+          "cons": ["Key weakness"],
+          "why_consider": "Better for users who prioritize comfort"
+        }
+      ],
+      "verdict": "Final recommendation text"
+    }
+    ```
+*   **Implementation**: [`backend/app/agent/nodes/response.py`](backend/app/agent/nodes/response.py)
 
 ### **Node 6: Chat/Refinement Loop (The "Conversation")**
 *   **Trigger**: User sends a follow-up message (e.g., "What about the warranty?", "Find a cheaper one").
@@ -421,7 +447,7 @@ docker-compose up -d
 | **Node 1: Vision** | `gpt-4o` (via OpenRouter) | Best-in-class vision with accurate bounding boxes |
 | **Node 2: Research** | N/A (API calls) | Tavily + SerpAPI, no LLM |
 | **Node 2b: Market Scout** | `gemini-2.0-flash` | Fast candidate extraction from search results |
-| **Node 3: Skeptic** | `gemini-1.5-pro` | Deep reasoning for fake review detection |
-| **Node 4: Analysis** | `gemini-1.5-pro` | Complex multi-factor scoring and ranking |
-| **Node 5: Response** | `gemini-1.5-flash` | Fast formatting, no deep reasoning needed |
-| **Node 6: Chat** | `gemini-1.5-pro` | Context-aware conversation with reasoning |
+| **Node 3: Skeptic** | `gemini-2.0-flash` | Fake review detection and price verification |
+| **Node 4: Analysis** | `gemini-2.0-flash` | Multi-factor scoring and ranking (`MODEL_ANALYSIS`) |
+| **Node 5: Response** | `gemini-2.0-flash` | Main product analysis + alternative summaries (`MODEL_RESPONSE`) |
+| **Node 6: Chat** | `gemini-2.0-flash` | Context-aware conversation with reasoning |

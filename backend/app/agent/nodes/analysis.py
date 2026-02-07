@@ -3,7 +3,8 @@ from app.agent.state import AgentState
 from app.db.session import SessionLocal
 from app.services.preference_service import get_learned_weights, merge_weights, save_choice, get_user_explicit_preferences
 from app.agent.scoring import calculate_weighted_score
-from app.agent.skeptic import analyze_reviews
+from app.agent.skeptic import SkepticAgent
+from app.core.config import settings
 import logging
 
 # Configure logging
@@ -103,10 +104,22 @@ def node_analysis_synthesis(state: AgentState) -> Dict[str, Any]:
     print(f"   [Analysis] Market Average Price: ${market_avg:.2f}")
 
     # Helper function for parallel execution
+    # Initialize skeptic agent with MODEL_ANALYSIS (Node 4 specific model)
+    skeptic_agent = SkepticAgent(model_name=settings.MODEL_ANALYSIS)
+    
     def process_candidate(alt):
+        from app.agent.skeptic import Review
         # Run Skeptic on alternative (Quantitative)
         reviews_data = alt.get('reviews', [])
-        sentiment_data = analyze_reviews(alt.get('name'), reviews_data)
+        # Convert to Review objects
+        valid_reviews = []
+        for r in reviews_data:
+            try:
+                valid_reviews.append(Review(**r))
+            except:
+                pass
+        sentiment_result = skeptic_agent.analyze_reviews(alt.get('name'), valid_reviews)
+        sentiment_data = sentiment_result.model_dump()
         
         # Extract features for scoring
         price_str = alt.get('prices', [{}])[0].get('price', 0)
