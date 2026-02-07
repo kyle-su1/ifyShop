@@ -132,6 +132,44 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
 
             # 5. Enrich with Real-Time Prices and Reviews (Node 2a logic for alternatives)
             print("   [Scout] Fetching prices and reviews for candidates...")
+            
+            # --- Snowflake Vector Search Integration ---
+            # Checks for similar products already in our database
+            try:
+                from langchain_google_genai import GoogleGenerativeAIEmbeddings
+                from app.services.snowflake_vector import snowflake_vector_service
+                
+                print("   [Scout] Checking Snowflake Vector DB for known alternatives...")
+                
+                embeddings = GoogleGenerativeAIEmbeddings(
+                    model="models/embedding-001", 
+                    google_api_key=settings.GOOGLE_API_KEY
+                )
+                query_vector = embeddings.embed_query(product_name)
+                
+                # Search Snowflake
+                vector_results = snowflake_vector_service.search_similar_products(query_vector, limit=3)
+                
+                if vector_results:
+                    print(f"   [Scout] Found {len(vector_results)} matches in Snowflake.")
+                    for res in vector_results:
+                        # Convert to candidate format
+                        cand = {
+                            "name": res.get('name'),
+                            "reason": "Found in internal database (High Similarity)",
+                            "estimated_price": f"${res.get('price')} (Historical)",
+                            "pros": ["Verified Product"],
+                            "cons": [],
+                            "source": "Snowflake Vector DB"
+                        }
+                        # Add to candidates if not duplicate
+                        if not any(c.get('name') == cand['name'] for c in candidates):
+                            candidates.append(cand)
+            except Exception as e:
+                print(f"   [Scout] Snowflake Vector Search skipped: {e}")
+            
+            # --- End Snowflake Integration ---
+
             try:
                 from app.sources.serpapi_client import get_shopping_offers
                 from app.sources.tavily_client import find_review_snippets
