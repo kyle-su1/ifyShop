@@ -188,6 +188,9 @@ This phase runs two parallel agents to gather deep data.
     *   **Snowflake Vector Search**: For internal product catalog similarity (Internal Discovery).
 *   **Model**: **Gemini 2.0 Flash** (`gemini-2.0-flash`) for fast candidate extraction.
 *   **Strategy**: Hybrid Discovery (Internal + External Fusion).
+*   **Vector Feedback Loop** _[NEW]_:
+    *   Validated external findings (from Tavily) are **upserted** to Snowflake `products` with 3072-dim embeddings.
+    *   **Purpose**: Continually expands the internal knowledge base with high-quality findings.
 
 ### **Node 3: The Skeptic (Critique & Verification)**
 *   **Input**: Raw product data (Main Item) + Alternative Candidates (Scout).
@@ -436,12 +439,15 @@ docker-compose up -d
 | **Node 3: Skeptic** | `gemini-2.0-flash` | Deep reasoning for fake review detection |
 | **Node 4: Analysis** | `gemini-2.0-flash` | Complex multi-factor scoring and ranking |
 | **Node 5: Response** | `gemini-2.0-flash` | Fast formatting and data aggregation |
-### **Node 6: Chat/Refinement Loop (The "Conversation")**
-*   **Trigger**: User sends a follow-up message (e.g., "What about the warranty?", "Find a cheaper one").
-*   **Model**: **Gemini 1.5 Pro** (`gemini-1.5-pro`).
-    > **Model Selection**: Chat requires understanding context, recalling previous analysis, and reasoning about new user intents.
-*   **Input**: Chat History + Previous Context + Session State.
-*   **Action**: 
-    1.  **Direct Answer**: If the answer is in the context, reply directly.
-    2.  **Re-Research**: Loop back to **Node 2 (Research/Scout)** if new data is needed (e.g., "Find cheaper ones").
-    3.  **Preference Update**: If the user states a preference (e.g., "I hate red"), update the **User Preferences** in Postgres and re-run **Node 4 (Analysis)**.
+### **Node 6: Chat & Router Loop (The "Conversation")** _[NEW]_
+*   **Trigger**: User sends a follow-up message or uploads an image.
+*   **Component**: `backend/app/agent/nodes/router.py`
+*   **Model**: **Gemini 2.0 Flash** (`gemini-2.0-flash`).
+*   **Logic**: Classifies intent into:
+    1.  `vision_search`: New image analysis.
+    2.  `chat`: General Q&A about the current product.
+    3.  `update_preferences`: User states a new constraint (e.g., "I need it under $50").
+    4.  `market_scout_search`: User wants specific alternatives (e.g., "Find me a blue one").
+*   **Feedback Loop**:
+    *   **Vector Feedback**: Validated external findings (from Tavily) are **upserted** to Snowflake `products` with 3072-dim embeddings.
+    *   **Preference Learning**: User constraints are saved to the User Profile (Postgres) and influence future `Analysis` node scoring.
