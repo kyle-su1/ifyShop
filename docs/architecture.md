@@ -66,12 +66,18 @@ This phase runs two parallel agents to gather deep data on the target product AN
 
 ### **Node 3: The Skeptic (Critique & Verification)**
 *   **Input**: Raw product data (Main Item) + Alternative Candidates (Scout).
-*   **Agent**: **Skeptic Agent** (Gemini 1.5 Pro).
+*   **Agent**: **Skeptic Agent** (`gemini-2.0-flash`).
+    > **Implementation Note**: Originally planned for `gemini-1.5-pro`, but switched to `gemini-2.0-flash` due to model availability in the Generative Language API. This model provides sufficient capability for sentiment analysis and fake review detection.
 *   **Responsibilities**:
     1.  **Fake Review Detection**: Analyze patterns in reviews for the main product.
     2.  **Deal Verification**: Check if the "sale price" is actually a tactic.
     3.  **Cross-Exam**: Briefly check if the "Alternates" suggested by the Scout actually hold up to scrutiny or if they are just paid placement lists.
-*   **Output**: Risk Report (e.g., "High likelihood of fake reviews on Amazon", "Alternative X is actually discontinued").
+*   **Output**: `ReviewSentiment` object containing:
+    - `trust_score` (0-10): Credibility of the reviews.
+    - `sentiment_score` (-1 to 1): Weighted sentiment.
+    - `red_flags`: List of suspicious patterns detected.
+    - `summary`, `pros`, `cons`, `verdict`: Human-readable analysis.
+*   **Implementation**: [`backend/app/agent/skeptic.py`](file:///Users/kylesu/Desktop/CxC2026/backend/app/agent/skeptic.py)
 
 ### **Node 4: Analysis & Synthesis (The "Brain")**
 *   **Input**: Product Data + Contextual Scout Data + Risk Report.
