@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import ImageUploader from '../components/ImageUploader'
 import LogoutButton from '../components/LogoutButton'
 import { useAuth0 } from '@auth0/auth0-react'
+import axios from 'axios';
 import { analyzeImage, identifyObject } from '../lib/api'
 import BoundingBoxOverlay from '../components/BoundingBoxOverlay';
 import ScanningOverlay from '../components/ScanningOverlay';
@@ -22,6 +23,24 @@ const DashboardPage = () => {
     const [isIdentifying, setIsIdentifying] = useState(false);
     const [identifiedCache, setIdentifiedCache] = useState({}); // Cache Lens results by object index
     const [agentStep, setAgentStep] = useState(0);
+    const [backendReady, setBackendReady] = useState(false);
+
+    // Poll backend health
+    useEffect(() => {
+        const checkHealth = async () => {
+            try {
+                // Simple health check call
+                await axios.get(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/health`);
+                setBackendReady(true);
+            } catch (e) {
+                setBackendReady(false);
+            }
+        };
+
+        checkHealth();
+        const interval = setInterval(checkHealth, 5000);
+        return () => clearInterval(interval);
+    }, []);
 
     // Initialize selectedObject when analysis results load
     useEffect(() => {
@@ -33,12 +52,13 @@ const DashboardPage = () => {
         }
     }, [analysisResult]);
 
-    // Handle bounding box click - call Lens API on demand
+    // Handle bounding box click - call Lens API AND then Deep Analysis
     const handleObjectClick = async (obj, idx) => {
         console.log("[handleObjectClick] Clicked obj:", obj.name, "idx:", idx);
         setSelectedObject(obj);
 
-        // Check if already identified (cached)
+        // Check if already identified (cached) - if so, we might still want to deep analyze if missing details?
+        // For now, assume if cached, it's done.
         if (identifiedCache[idx]) {
             console.log("[handleObjectClick] Using cached result");
             const cached = identifiedCache[idx];
@@ -47,50 +67,75 @@ const DashboardPage = () => {
         }
 
         // Skip if already identifying or no image
-        if (isIdentifying || !imageBase64) {
-            console.log("[handleObjectClick] Skipping - isIdentifying:", isIdentifying, "hasImage:", !!imageBase64);
-            return;
-        }
+        if (isIdentifying || !imageBase64) return;
 
         setIsIdentifying(true);
         console.log("[handleObjectClick] Calling identifyObject API...");
+
         try {
             const token = await getAccessTokenSilently();
-            const result = await identifyObject(imageBase64, obj.bounding_box, token);
-            console.log("[handleObjectClick] API result:", result);
 
-            // Cache the result
-            setIdentifiedCache(prev => ({ ...prev, [idx]: result }));
+            // 1. Identify specific product (Lens) (~5s)
+            const lensResult = await identifyObject(imageBase64, obj.bounding_box, token);
+            console.log("[handleObjectClick] Lens result:", lensResult);
 
-            // Update selected object with Lens result
-            setSelectedObject({
+            // Cache the lens result
+            setIdentifiedCache(prev => ({ ...prev, [idx]: lensResult }));
+
+            // Update UI immediately with product name
+            const updatedObj = {
                 ...obj,
-                name: result.product_name || obj.name,
-                confidence: result.confidence || obj.confidence,
+                name: lensResult.product_name || obj.name,
+                confidence: lensResult.confidence || obj.confidence,
                 lens_status: 'identified',
-                lens_link: result.link
-            });
+                lens_link: lensResult.link
+            };
 
-            // Update the object in the analysis result
+            setSelectedObject(updatedObj);
+
+            // Update the object in the analysis result (preserve boxes)
             setAnalysisResult(prev => {
                 if (!prev?.active_product?.detected_objects) return prev;
                 const updatedObjects = [...prev.active_product.detected_objects];
-                updatedObjects[idx] = {
-                    ...updatedObjects[idx],
-                    name: result.product_name || updatedObjects[idx].name,
-                    confidence: result.confidence || 0.8,
-                    lens_status: 'identified'
-                };
+                updatedObjects[idx] = updatedObj;
                 return {
                     ...prev,
-                    active_product: {
-                        ...prev.active_product,
-                        detected_objects: updatedObjects
-                    }
+                    active_product: { ...prev.active_product, detected_objects: updatedObjects }
                 };
             });
+
+            // 2. Trigger Deep Analysis (Stage 2) (~3s)
+            // We want to analyze THIS specific product now.
+            console.log("[handleObjectClick] Triggering Deep Analysis for:", lensResult.product_name);
+            setAgentStep(0); // Restart agent visualization
+            // Start agent progress simulation again
+            const stepInterval = setInterval(() => {
+                setAgentStep(prev => (prev < 4 ? prev + 1 : prev));
+            }, 800);
+
+            const deepAnalysis = await analyzeImage(imageFile, token, {
+                skip_vision: true,
+                product_name: lensResult.product_name
+            });
+
+            clearInterval(stepInterval);
+            setAgentStep(5);
+
+            // Merge Deep Analysis result with existing boxes
+            setAnalysisResult(prev => ({
+                ...deepAnalysis, // outcome, summary, pricing, alternatives
+                active_product: {
+                    ...deepAnalysis.active_product, // might have context/canon_name
+                    // CRITICAL: Restore the detected objects from Stage 1, updated with identification
+                    detected_objects: prev.active_product.detected_objects
+                },
+                // Keep the identified product name top-level
+                identified_product: lensResult.product_name
+            }));
+
         } catch (error) {
-            console.error("Failed to identify object:", error);
+            console.error("Failed to identify/analyze object:", error);
+            alert("Failed to analyze object details.");
         } finally {
             setIsIdentifying(false);
         }
@@ -110,24 +155,31 @@ const DashboardPage = () => {
         setAgentStep(0);
         setAnalysisResult(null);
 
-        // Simulate agent steps progress
-        // Ideally this would be driven by WebSocket events
+        // Stage 1: Fast Detection Only
+        // Simulation for detection (faster)
         const stepInterval = setInterval(() => {
-            setAgentStep(prev => (prev < 4 ? prev + 1 : prev));
-        }, 1200);
+            setAgentStep(prev => (prev < 1 ? prev + 1 : prev)); // Only go to step 1 (Vision)
+        }, 500);
 
         try {
             const token = await getAccessTokenSilently();
-            const result = await analyzeImage(imageFile, token);
+            // Call API with detect_only=true
+            const result = await analyzeImage(imageFile, token, { detect_only: true });
 
             clearInterval(stepInterval);
-            setAgentStep(5); // Mark as complete
+            setAgentStep(1); // Vision done
 
-            // Small delay to show completion state before revealing results
+            // Result should be { product_query: { detected_objects: [...] } }
+            // Map to expected UI structure
             setTimeout(() => {
-                setAnalysisResult(result);
+                setAnalysisResult({
+                    active_product: result, // result IS the product_query object from backend
+                    outcome: 'pending_selection', // New state?
+                    summary: 'Objects detected. Click a bounding box to analyze details.',
+                    detected_objects: result.detected_objects // Redundant but safe
+                });
                 setIsAnalyzing(false);
-            }, 600);
+            }, 300);
 
         } catch (error) {
             clearInterval(stepInterval);
@@ -238,13 +290,18 @@ const DashboardPage = () => {
                                 {imageFile && (
                                     <button
                                         onClick={handleAnalyze}
-                                        disabled={isAnalyzing}
-                                        className="mt-6 w-full py-3 px-4 btn-primary rounded-lg font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group flex-shrink-0"
+                                        disabled={isAnalyzing || !backendReady}
+                                        className="mt-6 w-full py-3 px-4 btn-primary rounded-lg font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group background-animate"
                                     >
                                         {isAnalyzing ? (
                                             <>
                                                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                                 Processing...
+                                            </>
+                                        ) : !backendReady ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
+                                                Connecting to Brain...
                                             </>
                                         ) : (
                                             <>

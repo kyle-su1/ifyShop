@@ -31,6 +31,11 @@ def node_user_intent_vision(state: AgentState) -> Dict[str, Any]:
     if not image_data:
         return {"product_query": {"error": "No image provided"}}
 
+    # CHECK FOR SKIP FLAG (Stage 2 of Two-Stage Pipeline)
+    if state.get("skip_vision"):
+        print("--- Vision Node: SKIPPING (Deep Analysis Mode) ---")
+        return {} # Pass-through, no changes to state
+
     import time
     start_time = time.time()
     

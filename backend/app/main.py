@@ -49,6 +49,9 @@ class AnalyzeRequest(BaseModel):
     image: str  # base64 string
     user_preferences: Dict[str, float]
     user_query: str
+    detect_only: bool = False  # Stage 1: Detect objects and stop
+    skip_vision: bool = False  # Stage 2: Resume analysis (skip detection)
+    product_name: str = ""     # Stage 2: Specific product to analyze
 
 @app.post("/analyze")
 async def analyze_image(request: AnalyzeRequest):
@@ -59,14 +62,25 @@ async def analyze_image(request: AnalyzeRequest):
         return {"error": "Agent not initialized"}
 
     print(f"Received request for image analysis. Query: {request.user_query}")
+    print(f"   Flags: detect_only={request.detect_only}, skip_vision={request.skip_vision}, product={request.product_name}")
     
     # Initialize the state with inputs
     initial_state = {
         "user_query": request.user_query,
         "image_base64": request.image,
         "user_preferences": request.user_preferences,
+        "detect_only": request.detect_only,
+        "skip_vision": request.skip_vision,
         # Other state keys will be populated by the graph
     }
+    
+    # If skip_vision is True, we might want to manually inject the product_query
+    if request.skip_vision and request.product_name:
+        initial_state["product_query"] = {
+            "canonical_name": request.product_name,
+            "detected_objects": [], # Skipped detection
+            "context": "User provided product name via Lens identification"
+        }
     
     # Generate a unique thread_id for this request (required by MemorySaver)
     import uuid
@@ -76,5 +90,13 @@ async def analyze_image(request: AnalyzeRequest):
     # Run the graph asynchronously
     result = await agent_app.ainvoke(initial_state, config=config)
     
-    # The result contains the final state, so we return the final_recommendation
+    # The result contains the final state.
+    # In 'detect_only' mode, we won't have 'final_recommendation', but we will have 'product_query'.
+    if request.detect_only:
+        pq = result.get("product_query", {})
+        print(f"DEBUG: Returning product_query: {pq.keys() if pq else 'None'}")
+        if pq and 'detected_objects' in pq:
+            print(f"DEBUG: detected_objects count: {len(pq['detected_objects'])}")
+        return result.get("product_query", {"error": "No objects detected"})
+        
     return result.get("final_recommendation", {"error": "No recommendation generated"})
