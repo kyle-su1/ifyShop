@@ -14,6 +14,10 @@ class SnowflakeCacheService:
         """
         Check cache, return if valid (not expired).
         """
+        if not self.session:
+            # logger.debug("Snowflake session not available. Skipping cache.")
+            return None
+
         try:
             # We filter by expires_at > CURRENT_TIMESTAMP()
             query = f"""
@@ -51,6 +55,9 @@ class SnowflakeCacheService:
         """
         Store result with expiry using MERGE (upsert).
         """
+        if not self.session:
+            return False
+
         try:
             # Escape single quotes for SQL
             params_str = json.dumps(params).replace("'", "''")

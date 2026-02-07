@@ -74,17 +74,24 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
     # I'll implement a `search_alternatives` function in tavily_client.py in the next step.
     # For this file, I'll assume it exists.
     
+    import time
+    start_time = time.time()
+    
     # 3. Execute Search (Using Tavily)
     from app.sources.tavily_client import search_market_context
 
     main_query = queries[0]
+    tavily_start = time.time()
     scout_results = search_market_context(main_query)
-
+        
     if not scout_results:
         print(f"   [Scout] Primary query '{main_query}' returned no results. Trying backup...")
         # Fallback to broader query
         backup_query = f"best alternatives to {product_name} 2026"
         scout_results = search_market_context(backup_query)
+    
+    tavily_time = time.time() - tavily_start
+    print(f"--- Scout Node: Tavily Search took {tavily_time:.2f}s ---")
 
     # 4. Extract Candidates using LLM
     print(f"   [Scout] Extracting candidates from {len(scout_results)} search results...")
@@ -125,7 +132,10 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
         structured_llm = llm.with_structured_output(CandidateList)
         chain = prompt | structured_llm
         
+        extraction_start = time.time()
         result = chain.invoke({"strategy": search_modifiers[0], "context": context_text})
+        extraction_time = time.time() - extraction_start
+        print(f"--- Scout Node: Candidate Extraction took {extraction_time:.2f}s ---")
         
         if result and result.items:
             # Convert Pydantic models to dicts for serialization
@@ -136,6 +146,7 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
             # Save these candidates back to Snowflake so we remember them for next time
             print("   [Scout] Feedback Loop: Upserting candidates to Snowflake...")
             try:
+                vector_start = time.time()
                 from langchain_google_genai import GoogleGenerativeAIEmbeddings
                 from app.services.snowflake_vector import snowflake_vector_service
                 
@@ -174,6 +185,9 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
                         
                     except Exception as inner_e:
                         print(f"       -> Failed to save {cand.get('name')}: {inner_e}")
+                
+                vector_time = time.time() - vector_start
+                print(f"--- Scout Node: Vector Feedback took {vector_time:.2f}s ---")
                         
             except Exception as e:
                 print(f"   [Scout] Feedback Loop Failed: {e}")
@@ -219,45 +233,71 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
             
             # --- End Snowflake Integration ---
 
+            enrich_start = time.time()
             try:
                 from app.sources.serpapi_client import get_shopping_offers
                 from app.sources.tavily_client import find_review_snippets
                 from app.schemas.types import ProductQuery
+                from concurrent.futures import ThreadPoolExecutor, as_completed
                 
-                for cand in candidates:
+                def enrich_candidate(cand):
                     name = cand.get('name')
                     if not name:
-                        continue
+                        return cand
                     
-                    # Create a temporary ProductQuery for this candidate
-                    temp_query = ProductQuery(canonical_name=name)
-                    temp_trace = []
+                    try:
+                        # Create a temporary ProductQuery for this candidate
+                        temp_query = ProductQuery(canonical_name=name)
+                        temp_trace = []
+                        
+                        # Get all prices
+                        price_offers = get_shopping_offers(temp_query, temp_trace)
+                        cand['prices'] = [
+                            {"vendor": p.vendor, "price": p.price_cents / 100, "currency": p.currency, "url": p.url}
+                            for p in price_offers
+                        ]
+                        
+                        # Calculate median price for display
+                        if price_offers:
+                            sorted_prices = sorted([p.price_cents for p in price_offers])
+                            median_idx = len(sorted_prices) // 2
+                            median_price = sorted_prices[median_idx] / 100
+                            cand['estimated_price'] = f"${median_price:.2f} CAD"
+                            # print(f"       -> {name}: {len(price_offers)} prices found (median: ${median_price:.2f})")
+                        
+                        # Get reviews
+                        review_snippets = find_review_snippets(temp_query, temp_trace)
+                        cand['reviews'] = [
+                            {"source": r.source, "snippet": r.snippet, "url": r.url}
+                            for r in review_snippets
+                        ]
+                        # print(f"       -> {name}: {len(review_snippets)} reviews found")
+                        return cand
+                    except Exception as e:
+                        print(f"       -> Enrichment failed for {name}: {e}")
+                        return cand
+
+                print(f"   [Scout] Enriching {len(candidates)} candidates in parallel...")
+                with ThreadPoolExecutor(max_workers=5) as executor:
+                    # Map unique candidates to futures
+                    # Note: We are modifying 'cand' dictionaries in place mostly, but returning them checks out.
+                    # Actually, the 'cand' is a dict, so it is mutable. 
+                    # We can just run the function.
+                    futures = [executor.submit(enrich_candidate, c) for c in candidates]
                     
-                    # Get all prices
-                    price_offers = get_shopping_offers(temp_query, temp_trace)
-                    cand['prices'] = [
-                        {"vendor": p.vendor, "price": p.price_cents / 100, "currency": p.currency, "url": p.url}
-                        for p in price_offers
-                    ]
-                    
-                    # Calculate median price for display
-                    if price_offers:
-                        sorted_prices = sorted([p.price_cents for p in price_offers])
-                        median_idx = len(sorted_prices) // 2
-                        median_price = sorted_prices[median_idx] / 100
-                        cand['estimated_price'] = f"${median_price:.2f} CAD"
-                        print(f"       -> {name}: {len(price_offers)} prices found (median: ${median_price:.2f})")
-                    
-                    # Get reviews
-                    review_snippets = find_review_snippets(temp_query, temp_trace)
-                    cand['reviews'] = [
-                        {"source": r.source, "snippet": r.snippet, "url": r.url}
-                        for r in review_snippets
-                    ]
-                    print(f"       -> {name}: {len(review_snippets)} reviews found")
+                    for future in as_completed(futures):
+                        try:
+                            # We just wait for completion, the dicts are updated in place or returned
+                            res = future.result()
+                            print(f"       -> Enriched {res.get('name')}")
+                        except Exception as e:
+                            print(f"       -> Parallel task failed: {e}")
                     
             except Exception as e:
-                print(f"       -> Enrichment failed: {e}")
+                print(f"       -> Enrichment setup failed: {e}")
+            
+            enrich_time = time.time() - enrich_start
+            print(f"--- Scout Node: Enrichment (SerpAPI+Tavily) took {enrich_time:.2f}s ---")
         
     except Exception as e:
         import traceback
@@ -266,6 +306,8 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
         # Fallback: just return empty candidates
         pass
 
+    total_time = time.time() - start_time
+    print(f"--- Market Scout Node: Total time {total_time:.2f}s ---")
     log_debug("Market Scout Node Completed")
     return {
         "market_scout_data": {

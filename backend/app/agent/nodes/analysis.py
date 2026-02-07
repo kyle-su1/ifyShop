@@ -170,16 +170,27 @@ def node_analysis_synthesis(state: AgentState) -> Dict[str, Any]:
 
     # Execute in parallel
     from concurrent.futures import ThreadPoolExecutor, as_completed
+    import time
+
+    start_time = time.time()
+    print(f"   [Analysis] Processing {len(alternatives)} candidates in parallel...")
     
-    # Execute sequentially for debugging
-    for alt in alternatives:
-        print(f"   [Analysis] Processing candidate: {alt.get('name')}")
-        try:
-            result = process_candidate(alt)
-            alternatives_scored.append(result)
-        except Exception as exc:
-            print(f"   [Analysis] Error processing {alt.get('name')}: {exc}")
-            log_debug(f"Error processing {alt.get('name')}: {exc}")
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_alt = {executor.submit(process_candidate, alt): alt for alt in alternatives}
+        
+        for future in as_completed(future_to_alt):
+            alt = future_to_alt[future]
+            try:
+                cand_start = time.time()
+                result = future.result()
+                # cand_time = time.time() - cand_start # This generic timer isn't per-task anymore in parallel
+                # We can't easily time individual thread execution from outside without wrapping inside
+                # But we can see total time reduction.
+                print(f"       -> Scored {alt.get('name')}")
+                alternatives_scored.append(result)
+            except Exception as exc:
+                print(f"   [Analysis] Error processing {alt.get('name')}: {exc}")
+                log_debug(f"Error processing {alt.get('name')}: {exc}")
 
     # Sort by Total Score
     alternatives_scored.sort(key=lambda x: x['score_details']['total_score'], reverse=True)
@@ -203,6 +214,8 @@ def node_analysis_synthesis(state: AgentState) -> Dict[str, Any]:
         "applied_preferences": final_weights
     }
     
+    total_time = time.time() - start_time
+    print(f"--- Analysis Node: Total time {total_time:.2f}s ---")
     log_debug("Analysis Node Completed")
     return {
         "analysis_object": analysis_object, 

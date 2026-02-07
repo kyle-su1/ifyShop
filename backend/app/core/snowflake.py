@@ -19,8 +19,16 @@ def get_snowflake_session():
         "schema": settings.SNOWFLAKE_SCHEMA,
     }
     
+    # Check if credentials exist
+    if not settings.SNOWFLAKE_ACCOUNT:
+        return None
+
     # Filter out None values to allow optional params or defaults
     connection_params = {k: v for k, v in connection_params.items() if v}
     
-    session = Session.builder.configs(connection_params).create()
-    return session
+    try:
+        session = Session.builder.configs(connection_params).create()
+        return session
+    except Exception as e:
+        print(f"Snowflake session creation failed: {e}")
+        return None

@@ -62,9 +62,16 @@ def identify_product_with_lens(image_bytes: bytes, extension: str = "jpg") -> Di
         log_debug("Skipping Lens - No SERPAPI_API_KEY")
         return {"error": "SERPAPI_API_KEY not configured"}
     
+    import time
+    
     try:
+        start_time = time.time()
+        
         # Try ImgBB first (faster, more reliable)
+        upload_start = time.time()
         public_url = upload_to_imgbb(image_bytes)
+        upload_time = time.time() - upload_start
+        log_debug(f"Image upload took {upload_time:.2f}s")
         
         if not public_url:
             # Fall back to our hosting
@@ -88,11 +95,14 @@ def identify_product_with_lens(image_bytes: bytes, extension: str = "jpg") -> Di
             "country": "ca"
         }
         
+        lens_start = time.time()
         response = requests.get(
             "https://serpapi.com/search.json",
             params=params,
             timeout=60
         )
+        lens_time = time.time() - lens_start
+        log_debug(f"Lens API call took {lens_time:.2f}s")
         
         if response.status_code != 200:
             log_debug(f"Lens API error: {response.status_code}")
@@ -124,7 +134,7 @@ def identify_product_with_lens(image_bytes: bytes, extension: str = "jpg") -> Di
             if vm:
                 product_name = vm[0].get("title")
                 confidence = 0.8
-                source = vm[0].get("source", "visual_match")
+                source = vm[0].get("source", "visual_matches")
                 link = vm[0].get("link")
                 log_debug(f"Visual match: {product_name}")
         
@@ -138,13 +148,20 @@ def identify_product_with_lens(image_bytes: bytes, extension: str = "jpg") -> Di
                 link = sr[0].get("link")
                 log_debug(f"Shopping match: {product_name}")
         
+        total_time = time.time() - start_time
+        
         return {
             "product_name": product_name or "Unknown Product",
             "confidence": confidence,
             "source": source,
             "link": link,
             "visual_matches_count": len(results.get("visual_matches", [])),
-            "shopping_results_count": len(results.get("shopping_results", []))
+            "shopping_results_count": len(results.get("shopping_results", [])),
+            "timing": {
+                "upload_time_s": round(upload_time, 2),
+                "lens_api_time_s": round(lens_time, 2),
+                "total_time_s": round(total_time, 2)
+            }
         }
         
     except Exception as e:

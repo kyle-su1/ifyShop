@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from typing import Dict, Any, List, Optional
 from app.api import deps
 from app.models.session import Session as SessionModel, Message
 from app.schemas.session import SessionCreate, SessionResponse, MessageCreate, MessageResponse, SessionUpdate
-from app.agent.graph import agent_app
 import uuid
 import logging
-from typing import Dict, Any, List
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -100,6 +100,9 @@ async def chat_message(
     config = {"configurable": {"thread_id": session_id}}
     
     try:
+        # Lazy import to avoid circular dependency
+        from app.agent.graph import agent_app
+        
         # We use ainvok for async execution
         result = await agent_app.ainvoke(inputs, config=config)
         

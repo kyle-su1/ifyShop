@@ -41,6 +41,9 @@ def node_user_intent_vision(state: AgentState) -> Dict[str, Any]:
     if not image_data:
         return {"product_query": {"error": "No image provided"}}
 
+    import time
+    start_time = time.time()
+    
     try:
         if "base64," in image_data:
             image_data = image_data.split("base64,")[1]
@@ -69,10 +72,14 @@ def node_user_intent_vision(state: AgentState) -> Dict[str, Any]:
         """
 
         log_debug("Sending request to Gemini...")
+        gemini_start = time.time()
         response = model.generate_content([
             {'mime_type': 'image/jpeg', 'data': image_bytes},
             prompt
         ])
+        gemini_time = time.time() - gemini_start
+        log_debug(f"Gemini API took {gemini_time:.2f}s")
+        print(f"--- Vision Node: Gemini API took {gemini_time:.2f}s ---")
         
         content = response.text.replace('```json', '').replace('```', '').strip()
         gemini_data = json.loads(content)
@@ -85,6 +92,9 @@ def node_user_intent_vision(state: AgentState) -> Dict[str, Any]:
             obj['lens_status'] = 'pending'  # Will be 'identified' after Lens call
             obj['confidence'] = 0.5  # Low confidence until Lens confirms
         
+        total_time = time.time() - start_time
+        print(f"--- Vision Node: Total time {total_time:.2f}s ---")
+        
         return {
             "product_query": {
                 "canonical_name": gemini_data.get('primary_product', 'Unknown'),
@@ -96,6 +106,8 @@ def node_user_intent_vision(state: AgentState) -> Dict[str, Any]:
 
     except Exception as e:
         log_debug(f"Vision error: {str(e)}")
+        total_time = time.time() - start_time
+        print(f"--- Vision Node Failed after {total_time:.2f}s ---")
         return {"product_query": {
             "product_name": "Unknown Item",
             "context": f"Error: {str(e)}",

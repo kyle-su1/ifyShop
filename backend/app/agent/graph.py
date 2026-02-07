@@ -15,7 +15,7 @@ from app.agent.nodes.chat import node_chat
 # 1. Define the Graph
 workflow = StateGraph(AgentState)
 
-# 2. Add Nodes
+# 2. Add Nodes (direct, no wrappers for now)
 workflow.add_node("router_node", node_router)
 workflow.add_node("vision_node", node_user_intent_vision)
 workflow.add_node("research_node", node_discovery_runner)

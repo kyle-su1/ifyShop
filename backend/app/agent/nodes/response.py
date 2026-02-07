@@ -95,9 +95,16 @@ STRICT JSON OUTPUT FORMAT:
 }}
 """
     
+    import time
+    start_time = time.time()
+    
     try:
         logger.info(f"Generating response with {settings.MODEL_RESPONSE}...")
+        llm_start = time.time()
         response = llm.invoke(prompt)
+        llm_time = time.time() - llm_start
+        print(f"--- Response Node: LLM Generation took {llm_time:.2f}s ---")
+        
         content = response.content
         
         # Clean up response - remove markdown code blocks if present
@@ -133,6 +140,8 @@ STRICT JSON OUTPUT FORMAT:
         final_payload["outcome"] = "error"
         final_payload["summary"] = "We encountered an issue generating your recommendation. Please try again."
     
+    total_time = time.time() - start_time
+    print(f"--- Response Node: Total time {total_time:.2f}s ---")
     log_debug("Response Node Completed")
     return {"final_recommendation": final_payload}
 

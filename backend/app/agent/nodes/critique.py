@@ -21,6 +21,9 @@ def node_skeptic_critique(state: AgentState) -> Dict[str, Any]:
 
     log_debug("--- 3. Executing Critique Node (The Skeptic) ---")
     
+    import time
+    start_time = time.time()
+    
     research_results = state.get('research_data', {})
     
     # --- Check Cache ---
@@ -32,9 +35,13 @@ def node_skeptic_critique(state: AgentState) -> Dict[str, Any]:
     items_hash = hashlib.md5(data_str.encode()).hexdigest()
     cache_key = f"skeptic:analysis:{items_hash}"
     
+    cache_start = time.time()
     cached_report = snowflake_cache_service.get(cache_key)
+    cache_time = time.time() - cache_start
+    
     if cached_report:
         log_debug(f"Critique Cache Hit! ({cache_key})")
+        print(f"--- Critique Node: Cache Hit in {cache_time:.2f}s ---")
         return {"risk_report": cached_report}
     # -------------------
 
@@ -56,7 +63,11 @@ def node_skeptic_critique(state: AgentState) -> Dict[str, Any]:
     """
     
     try:
+        llm_start = time.time()
         response = llm.invoke(prompt)
+        llm_time = time.time() - llm_start
+        print(f"--- Critique Node: LLM Analysis took {llm_time:.2f}s ---")
+        
         content = response.content.replace('```json', '').replace('```', '').strip()
         risk_report = json.loads(content)
         log_debug(f"Critique Output: {risk_report}")

@@ -42,14 +42,21 @@ def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
     
     trace_log = []
 
+    import time
+    start_time = time.time()
+    
     # 1. Tavily Search (Reviews)
     print(f"   [Runner] Searching reviews for: {product_name}")
     log_debug("Starting Tavily search...")
     try:
+        tavily_start = time.time()
         reviews = find_review_snippets(product, trace_log)
+        tavily_time = time.time() - tavily_start
+        print(f"--- Research Node: Tavily took {tavily_time:.2f}s ---")
+        
         # Convert Pydantic models to dicts for state serialization
         reviews_data = [r.dict() for r in reviews]
-        log_debug(f"Tavily found {len(reviews_data)} reviews")
+        log_debug(f"Tavily found {len(reviews_data)} reviews in {tavily_time:.2f}s")
     except Exception as e:
         print(f"   [Runner] Tavily Error: {e}")
         log_debug(f"Tavily Error: {e}")
@@ -59,10 +66,14 @@ def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
     print(f"   [Runner] Checking prices for: {product_name}")
     log_debug("Starting SerpAPI search...")
     try:
+        serp_start = time.time()
         offers = get_shopping_offers(product, trace_log)
+        serp_time = time.time() - serp_start
+        print(f"--- Research Node: SerpAPI took {serp_time:.2f}s ---")
+        
         # Convert Pydantic models to dicts for state serialization
         offers_data = [o.dict() for o in offers]
-        log_debug(f"SerpAPI found {len(offers_data)} offers")
+        log_debug(f"SerpAPI found {len(offers_data)} offers in {serp_time:.2f}s")
     except Exception as e:
         print(f"   [Runner] SerpAPI Error: {e}")
         log_debug(f"SerpAPI Error: {e}")

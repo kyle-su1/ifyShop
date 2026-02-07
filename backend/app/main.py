@@ -68,9 +68,13 @@ async def analyze_image(request: AnalyzeRequest):
         # Other state keys will be populated by the graph
     }
     
-    # Run the graph
-    # maximize_recursion_limit is set to handle potential loops if we add chat later
-    result = agent_app.invoke(initial_state)
+    # Generate a unique thread_id for this request (required by MemorySaver)
+    import uuid
+    thread_id = str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+    
+    # Run the graph asynchronously
+    result = await agent_app.ainvoke(initial_state, config=config)
     
     # The result contains the final state, so we return the final_recommendation
     return result.get("final_recommendation", {"error": "No recommendation generated"})
