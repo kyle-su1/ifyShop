@@ -9,19 +9,36 @@
 
 The system uses a **Two-Stage Pipeline** managed by **LangGraph**.
 
-### Stage 1: Fast Detection (Instant)
-**Goal**: Show bounding boxes immediately.
+### Stage 1: Targeted Object Detection (Primary: Chat-Based)
+
+**Goal**: User asks about a specific item → LLM finds and highlights that object.
+
+#### **Option A: Chat-Based Detection (Default)**
+1.  **Frontend uploads image** → Chat panel appears.
+2.  **User asks a question** (e.g., "What is this phone?" or "Where can I buy this keyboard?").
+3.  **POST `/api/v1/agent/chat-analyze`**:
+    *   Sends image + user query to **Gemini 2.0 Flash Vision**.
+    *   LLM identifies the **target object** from the query.
+    *   Returns **single bounding box** for that specific item.
+    *   Returns chat response acknowledging the item.
+4.  **Frontend**: Highlights the targeted object.
+    *   *Latency: ~2-3 seconds.*
+
+#### **Option B: Bounding Box Detection (Fallback)**
+> Use this mode via "Start Agent Workflow" button for multi-object detection.
+
 1.  **Frontend uploads image** to `/api/v1/agent/analyze` (flag: `detect_only=True`).
 2.  **Vision Node (Gemini 2.0 Flash)**:
-    *   Detects all objects.
-    *   Returns bounding boxes.
+    *   Detects **all** objects.
+    *   Returns bounding boxes for each.
     *   **STOPS execution**.
 3.  **Frontend**: Renders interactive boxes over the image.
+    *   User clicks a box to trigger Stage 2.
     *   *Latency: ~2 seconds.*
 
 ### Stage 2: Deep Analysis (On-Demand)
 **Goal**: Analyze a specific product selected by the user.
-1.  **User clicks a bounding box**.
+1.  **User clicks a bounding box** (Option B) or **chat identifies target** (Option A).
 2.  **On-Demand Identification** (`/api/v1/agent/identify`):
     *   Crops image to box.
     *   Uploads to ImgBB.
@@ -34,27 +51,25 @@ The system uses a **Two-Stage Pipeline** managed by **LangGraph**.
     *   **Analysis Node**: Scores products based on user preferences.
     *   **Response Node**: Generates final recommendation.
 
-#### **On-Demand Flow Diagram**
+#### **Flow Diagram (Chat-Based)**
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                   On-Demand Lens Flow                             │
+│                   Chat-Based Object Detection                     │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                   │
-│   1. Initial Analysis (Fast - Gemini Only)                       │
-│      Image → Gemini → Bounding Boxes + Generic Names             │
-│      Time: ~2-5 seconds                                          │
+│   1. User Uploads Image + Asks Question                          │
+│      "What is this phone?" or "Where can I buy this?"            │
 │                                                                   │
-│   2. User Clicks Bounding Box                                    │
-│      Frontend calls: POST /api/v1/agent/identify                 │
+│   2. Chat Analysis (Gemini Vision)                               │
+│      ┌─────────────────────────────────────────────────────┐     │
+│      │  Image + Query → Gemini → Target Object + BBox      │     │
+│      │  Time: ~2-3 seconds                                  │     │
+│      └─────────────────────────────────────────────────────┘     │
 │                                                                   │
-│   3. On-Demand Identification                                    │
-│      ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     │
-│      │ Crop Image  │ ──► │ Upload to   │ ──► │ SerpAPI     │     │
-│      │ to BBox     │     │ ImgBB/ngrok │     │ Google Lens │     │
-│      └─────────────┘     └─────────────┘     └─────────────┘     │
-│                                                      │            │
-│   4. Result Cached in Frontend State                 ▼            │
-│      Subsequent clicks → Instant response      {product_name}    │
+│   3. Frontend Highlights Target + Shows Chat Response            │
+│      POST /api/v1/agent/chat-analyze                             │
+│                                                                   │
+│   4. User Clicks Highlighted Object → Deep Analysis (Stage 2)    │
 │                                                                   │
 └──────────────────────────────────────────────────────────────────┘
 ```
