@@ -1,5 +1,5 @@
 from typing import List
-from backend.app.schemas.types import ProductQuery, ReviewSnippet, PriceOffer, SourceTrace
+from app.schemas.types import ProductQuery, ReviewSnippet, PriceOffer, SourceTrace
 
 from .serpapi_client import get_shopping_offers
 from .tavily_client import find_review_snippets

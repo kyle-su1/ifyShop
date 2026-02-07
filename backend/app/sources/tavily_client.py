@@ -1,7 +1,7 @@
 import os
 import requests
 from typing import List
-from backend.app.schemas.types import ProductQuery, ReviewSnippet
+from app.schemas.types import ProductQuery, ReviewSnippet
 
 
 TAVILY_URL = "https://api.tavily.com/search"
@@ -33,11 +33,14 @@ def find_review_snippets(product: ProductQuery, trace: list) -> List[ReviewSnipp
         data = r.json()
 
         for item in data.get("results", []):
+            url = item.get("url")
+            if not url:
+                continue
             results.append(
                 ReviewSnippet(
-                    source=item.get("title", ""),
-                    url=item.get("url"),
-                    snippet=item.get("content", ""),
+                    source=item.get("title") or "",
+                    url=url,
+                    snippet=item.get("content") or "",
                 )
             )
 
