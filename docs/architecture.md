@@ -174,10 +174,18 @@ This phase runs two parallel agents to gather deep data.
 
 ### **Node 6: Chat & Router Loop (The "Conversation")**
 *   **Trigger**: User sends a follow-up message or uploads an image.
-*   **Component**: `backend/app/agent/nodes/router.py`
-*   **Model**: **Gemini 2.0 Flash**.
-*   **Logic**: Classifies intent into `vision_search`, `chat`, `update_preferences`, or `market_scout_search`.
-*   **Feedback Loop**: User constraints influence future scoring.
+*   **Components**: `backend/app/agent/nodes/router.py`, `backend/app/agent/nodes/chat.py`
+*   **Model**: **Gemini 2.0 Flash** for intent classification and preference extraction.
+*   **Logic**: Classifies intent into:
+    *   `vision_search` → New image uploaded → Node 1
+    *   `chat` → General conversation → Respond only
+    *   `re_search` → Visual prefs (color, brand) OR specific budget ($120) → Node 2 (Market Scout)
+    *   `re_analysis` → General price prefs ("cheaper") → Node 4 (re-weight existing)
+*   **Preference Extraction**: Gemini extracts `exclude_colors`, `prefer_colors`, `prefer_brands`, `max_budget`, `price_sensitivity`.
+*   **Feedback Loop**:
+    *   **Postgres**: Saves preferences to `users.preferences` JSON field.
+    *   **Snowflake**: Vector search enhanced with extracted criteria.
+    *   **Market Scout**: Queries modified with filters (e.g., "blue keyboard under $120").
 
 ---
 
