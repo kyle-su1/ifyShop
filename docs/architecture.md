@@ -107,7 +107,16 @@ This phase runs two parallel agents to gather deep data.
 ### **Node 4: Analysis & Synthesis (The "Brain")**
 *   **Input**: Product Data + Scout Data + Risk Report.
 *   **Agent**: **Analyst Agent** (Gemini 1.5 Pro).
-*   **Output**: Structured Analysis Object.
+*   **Input**: Product Data + Contextual Scout Data + Risk Report + User Preferences.
+*   **Logic**:
+    1.  **Preference Loading**: Retrieves explicit user weights (Price, Quality, etc.) and learned preferences from past interactions.
+    2.  **Skeptic Analysis Loop**: Invokes the **Skeptic Agent (Node 3 logic)** for *every* candidate (Main Product + Alternatives). This ensures all products have a comparable **Trust Score** and **Sentiment Score** based on review analysis.
+    3.  **Weighted Scoring**: Calculates a final match score (0-100) for each product based on:
+        *   **Price Score**: Normalized against the market average.
+        *   **Quality Score**: Derived from Sentiment + Trust.
+        *   **Personalization**: Applied user weights.
+    4.  **Ranking**: Sorts all products to determine the best recommendation (Original Selection vs. Alternatives).
+*   **Output**: Structured Analysis Object with `recommended_product` and `alternatives_ranked`.
 
 ### **Node 5: Response Formulation (The "Speaker")**
 *   **Input**: Structured Analysis Object.

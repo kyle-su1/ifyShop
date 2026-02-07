@@ -28,14 +28,19 @@ class ReviewSentiment(BaseModel):
 
 # --- Agent Logic ---
 
+from app.core.config import settings
+
 class SkepticAgent:
-    def __init__(self, model_name: str = "gemini-2.0-flash"):
-        api_key = os.getenv("GOOGLE_API_KEY")
+    def __init__(self, model_name: Optional[str] = None):
+        # Default to settings model if not provided
+        self.model_name = model_name or settings.MODEL_REASONING
+        api_key = settings.GOOGLE_API_KEY
+        
         if not api_key:
              logger.warning("GOOGLE_API_KEY not set. Skeptic Agent will fail if invoked.")
         
         self.llm = ChatGoogleGenerativeAI(
-            model=model_name,
+            model=self.model_name,
             temperature=0.1, # Low temperature for objective analysis
             google_api_key=api_key,
             max_retries=2,

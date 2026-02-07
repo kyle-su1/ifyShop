@@ -50,6 +50,10 @@ class AgentState(TypedDict):
     #   'warnings': list, 
     #   'alternatives_scored': list
     # }
+    
+    # New: Detailed analysis of alternatives from Skeptic
+    alternatives_analysis: Optional[List[dict]]
+    # Structure: List of ReviewSentiment dicts corresponding to candidates
 
     # Node 5: Response (The Speaker) - Final Output
     final_recommendation: Optional[dict]

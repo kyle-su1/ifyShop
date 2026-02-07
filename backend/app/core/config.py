@@ -17,9 +17,17 @@ class Settings(BaseSettings):
     TAVILY_API_KEY: str
     SERPAPI_API_KEY: str
     
+    # Database (optional - graceful fallback if not set)
+    DATABASE_URL: str = "sqlite:///./test.db"
+    
     # Models
+<<<<<<< HEAD
     MODEL_VISION: str = "gemini-2.0-flash"
     MODEL_REASONING: str = "gemini-2.0-flash"
+=======
+    MODEL_VISION: str = "gemini-flash-latest"
+    MODEL_REASONING: str = "gemini-flash-latest"
+>>>>>>> 4421e03d9cd9a83e7d43edb624e8a2d88db0bdc7
 
     class Config:
         env_file = ".env"
