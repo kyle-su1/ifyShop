@@ -149,18 +149,22 @@ class ChatAnalyzeResponse(BaseModel):
 @router.post("/chat-analyze", response_model=ChatAnalyzeResponse)
 async def chat_analyze(request: ChatAnalyzeRequest):
     """
-    Chat-based targeted object analysis.
+    Chat-based targeted object analysis with FULL pipeline.
     
-    User asks about a specific item in the image (e.g., "what is this phone?").
-    The LLM identifies the target object, returns its bounding box, 
-    and provides a chat response.
+    Flow:
+    1. Gemini Vision finds target object + bounding box
+    2. Crop image to bounding box
+    3. SerpAPI Lens identifies exact product
+    4. Invoke full agent workflow (Market Scout → Skeptic → Analysis → Response)
+    5. Return complete recommendation in chat
     """
     import os
     from langchain_google_genai import ChatGoogleGenerativeAI
-    from langchain_core.prompts import ChatPromptTemplate
-    from langchain_core.output_parsers import StrOutputParser
+    from langchain_core.messages import HumanMessage
+    from app.services.image_crop import crop_to_bounding_box
+    from app.services.lens_identify import identify_product_with_lens
     
-    print(f"[ChatAnalyze] Query: {request.user_query}")
+    print(f"\n[ChatAnalyze] Query: {request.user_query}")
     
     if not request.image_base64:
         raise HTTPException(status_code=400, detail="No image data provided")
@@ -171,41 +175,31 @@ async def chat_analyze(request: ChatAnalyzeRequest):
         base64_data = base64_data.split("base64,")[1]
     
     try:
-        # Use Gemini Vision to analyze the query and find target object
+        # =====================================================
+        # STEP 1: Use Gemini Vision to find target object
+        # =====================================================
         llm = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             temperature=0,
             google_api_key=os.getenv("GOOGLE_API_KEY")
         )
         
-        # Prompt to extract object and find bounding box
-        system_prompt = """You are a visual shopping assistant. The user has uploaded an image and is asking about a specific item.
+        system_prompt = """You are a visual shopping assistant. The user is asking about a specific item in an image.
 
-Your task:
-1. Understand what object the user is asking about from their query
-2. Locate that SPECIFIC object in the image
-3. Return the bounding box for ONLY that object
+Task:
+1. Identify the object the user is asking about
+2. Return its bounding box location
 
-Return a JSON response with:
-- "target_object": the name/description of the object the user is asking about
-- "bounding_box": [y_min, x_min, y_max, x_max] as decimals 0.0-1.0 (normalized coordinates)
-- "confidence": 0.0-1.0 confidence in finding this object  
-- "chat_response": a brief, friendly response acknowledging you found the item
-
-If you cannot identify the target object, set bounding_box to null and explain in chat_response.
+Return JSON with:
+- "target_object": descriptive name of the object
+- "bounding_box": [y_min, x_min, y_max, x_max] as values 0-1000 (normalized)
+- "confidence": 0.0-1.0
 
 Return ONLY valid JSON, no markdown."""
 
-        human_prompt = f"""User Query: {request.user_query}
-
-Look at the image and find the object the user is asking about. Return the bounding box for ONLY that specific item."""
-
-        # Create multimodal message
-        from langchain_core.messages import HumanMessage
-        
         message = HumanMessage(
             content=[
-                {"type": "text", "text": system_prompt + "\n\n" + human_prompt},
+                {"type": "text", "text": f"{system_prompt}\n\nUser Query: {request.user_query}"},
                 {
                     "type": "image_url",
                     "image_url": {"url": f"data:image/jpeg;base64,{base64_data}"}
@@ -216,28 +210,96 @@ Look at the image and find the object the user is asking about. Return the bound
         response = await llm.ainvoke([message])
         response_text = response.content.strip()
         
-        # Clean markdown if present
+        # Clean markdown
         if response_text.startswith("```"):
             lines = response_text.split("\n")
-            if len(lines) >= 3:
-                response_text = "\n".join(lines[1:-1])
+            response_text = "\n".join(lines[1:-1]) if len(lines) >= 3 else response_text
         
-        print(f"[ChatAnalyze] LLM Response: {response_text[:200]}...")
+        vision_result = json.loads(response_text)
+        target_name = vision_result.get("target_object", "Unknown")
+        bbox = vision_result.get("bounding_box")
         
-        # Parse JSON response
-        result = json.loads(response_text)
+        print(f"[ChatAnalyze] Target: {target_name}, BBox: {bbox}")
+        
+        if not bbox:
+            return ChatAnalyzeResponse(
+                chat_response=f"I couldn't find '{request.user_query}' in the image. Could you describe it differently?",
+                targeted_object_name=None,
+                targeted_bounding_box=None
+            )
+        
+        # =====================================================
+        # STEP 2: Crop image and identify with Google Lens
+        # =====================================================
+        image_bytes = base64.b64decode(base64_data)
+        
+        # Convert bbox from 0-1 to 0-1000 if needed
+        if all(0 <= v <= 1 for v in bbox):
+            bbox = [int(v * 1000) for v in bbox]
+        
+        cropped_bytes = crop_to_bounding_box(image_bytes, bbox)
+        lens_result = identify_product_with_lens(cropped_bytes, "jpg")
+        
+        product_name = lens_result.get("product_name", target_name)
+        print(f"[ChatAnalyze] Lens ID: {product_name}")
+        
+        # =====================================================
+        # STEP 3: Invoke full agent workflow
+        # =====================================================
+        from app.agent.graph import agent_app
+        import uuid
+        
+        initial_state = {
+            "user_query": f"Find the best deals for: {product_name}",
+            "image_base64": base64_data,
+            "user_preferences": {},
+            "product_query": {
+                "canonical_name": product_name,
+                "detected_objects": [{
+                    "name": product_name,
+                    "bounding_box": bbox,
+                    "lens_result": lens_result
+                }],
+                "context": "User identified via chat + Lens"
+            },
+            "skip_vision": True  # Skip vision node, we already have product
+        }
+        
+        # Generate unique thread_id (required by MemorySaver)
+        thread_id = str(uuid.uuid4())
+        config = {"configurable": {"thread_id": thread_id}}
+        
+        final_state = await agent_app.ainvoke(initial_state, config=config)
+        full_result = final_state.get("final_recommendation", {})
+        
+        print(f"[ChatAnalyze] Pipeline complete. Outcome: {full_result.get('outcome', 'unknown')}")
+        
+        # =====================================================
+        # STEP 4: Format response for chat
+        # =====================================================
+        summary = full_result.get("summary", f"I found the {product_name}!")
+        
+        # Build chat response with key info
+        chat_response = f"**{product_name}**\n\n{summary}"
+        
+        if full_result.get("active_product", {}).get("price"):
+            chat_response += f"\n\n💰 Price: {full_result['active_product']['price']}"
+        
+        # Normalize bbox back to 0-1 for frontend
+        normalized_bbox = [v / 1000.0 for v in bbox] if bbox else None
         
         return ChatAnalyzeResponse(
-            chat_response=result.get("chat_response", "I'm looking at your image..."),
-            targeted_object_name=result.get("target_object"),
-            targeted_bounding_box=result.get("bounding_box"),
-            confidence=result.get("confidence", 0.8)
+            chat_response=chat_response,
+            targeted_object_name=product_name,
+            targeted_bounding_box=normalized_bbox,
+            confidence=lens_result.get("confidence", 0.8),
+            analysis=full_result  # Full analysis data for frontend
         )
         
     except json.JSONDecodeError as e:
         print(f"[ChatAnalyze] JSON parse error: {e}")
         return ChatAnalyzeResponse(
-            chat_response="I had trouble analyzing the image. Could you try asking again?",
+            chat_response="I had trouble understanding the image. Please try again.",
             targeted_object_name=None,
             targeted_bounding_box=None
         )
@@ -245,4 +307,5 @@ Look at the image and find the object the user is asking about. Return the bound
         print(f"[ChatAnalyze] Error: {str(e)}")
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Chat analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+

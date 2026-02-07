@@ -119,7 +119,8 @@ def node_analysis_synthesis(state: AgentState) -> Dict[str, Any]:
     # Calculate Market Average Price across all candidates
     all_prices = []
     for alt in alternatives:
-        p_str = alt.get('prices', [{}])[0].get('price', 0)
+        prices_list = alt.get('prices', [])
+        p_str = prices_list[0].get('price', 0) if prices_list else 0
         try:
             val = float(p_str)
             if val > 0:
@@ -160,7 +161,8 @@ def node_analysis_synthesis(state: AgentState) -> Dict[str, Any]:
         sentiment_data = sentiment_result.model_dump()
         
         # Extract features for scoring
-        price_str = alt.get('prices', [{}])[0].get('price', 0)
+        prices_list = alt.get('prices', [])
+        price_str = prices_list[0].get('price', 0) if prices_list else 0
         try:
             price = float(price_str)
         except:
