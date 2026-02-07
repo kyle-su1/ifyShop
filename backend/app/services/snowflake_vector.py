@@ -25,7 +25,7 @@ class SnowflakeVectorService:
             
             cmd = f"""
             SELECT id, name, description, price, image_url, source_url, 
-                   VECTOR_COSINE_SIMILARITY(embedding, PARSE_JSON('{vector_str}')::VECTOR(FLOAT, 768)) as score
+                   VECTOR_COSINE_SIMILARITY(embedding, PARSE_JSON('{vector_str}')::VECTOR(FLOAT, 3072)) as score
             FROM products
             ORDER BY score DESC
             LIMIT {limit}
@@ -77,10 +77,10 @@ class SnowflakeVectorService:
                     price = {price}, 
                     image_url = '{img}', 
                     source_url = '{src}',
-                    embedding = PARSE_JSON('{vector_str}')::VECTOR(FLOAT, 768)
+                    embedding = PARSE_JSON('{vector_str}')::VECTOR(FLOAT, 3072)
             WHEN NOT MATCHED THEN
                 INSERT (id, name, description, price, image_url, source_url, embedding)
-                VALUES ('{id}', '{name}', '{desc}', {price}, '{img}', '{src}', PARSE_JSON('{vector_str}')::VECTOR(FLOAT, 768))
+                VALUES ('{id}', '{name}', '{desc}', {price}, '{img}', '{src}', PARSE_JSON('{vector_str}')::VECTOR(FLOAT, 3072))
             """
             self.session.sql(cmd).collect()
             self.session.sql(cmd).collect()

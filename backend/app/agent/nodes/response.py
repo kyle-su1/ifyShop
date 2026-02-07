@@ -51,66 +51,47 @@ def node_response_formulation(state: AgentState) -> Dict[str, Any]:
         temperature=0.7  # Slightly creative for friendly responses
     )
     
+    # Extract key metrics for prompt context
+    trust_score = risk_report.get('trust_score', 5.0)
+    
     prompt = f"""You are a friendly, empathetic shopping assistant. 
-Your job is to analyze the product the user is looking at, and suggest alternatives.
+Your goal is to populate the dashboard with a final analysis.
 
-=== MAIN PRODUCT (What the user is looking at) ===
-Product Name: {analysis.get('recommended_product', 'Unknown')}
-Compatibility Score: {analysis.get('match_score', 0)}/100 (how well it matches user preferences)
-Scoring Breakdown: {json.dumps(analysis.get('scoring_breakdown', {}), indent=2)}
+=== MAIN PRODUCT ===
+Name: {analysis.get('recommended_product', 'Unknown')}
+Details: {json.dumps(analysis, indent=2)}
+Risk Report: {json.dumps(risk_report, indent=2)}
 
-=== MAIN PRODUCT DETAILED ANALYSIS (from Skeptic) ===
-{json.dumps([p for p in products_detail if 'Original' in p.get('reason', '')], indent=2)}
-
-=== ALTERNATIVE PRODUCTS (Suggestions) ===
-{json.dumps([p for p in products_detail if 'Original' not in p.get('reason', '')], indent=2)}
-
-Products Ranked: {json.dumps(analysis.get('alternatives_ranked', []), indent=2)}
-
-=== RISK REPORT (for Main Product) ===
-Fake Review Likelihood: {risk_report.get('fake_review_likelihood', 'Unknown')}
-Price Integrity: {risk_report.get('price_integrity', 'Unknown')}
-Hidden Flaws: {json.dumps(risk_report.get('hidden_flaws', []))}
-
-=== USER PREFERENCES ===
-{json.dumps(analysis.get('applied_preferences', {}), indent=2)}
+=== ALTERNATIVES & COMPETITORS ===
+{json.dumps(products_detail, indent=2)}
 
 === YOUR TASK ===
-Create a response that:
-1. Gives a DETAILED ANALYSIS of the MAIN PRODUCT (the one user is looking at)
-   - Summary, pros, cons, review sentiment, trust level
-2. Shows the main product's compatibility score (how well it fits their preferences)
-3. For EACH ALTERNATIVE, include a short summary so users can decide for themselves
+Generate a JSON object strictly matching the following schema. 
+Do not include Markdown. Do not include 'main_product' wrapper key.
+The root keys must trigger the specific frontend visualizers.
 
-Return ONLY valid JSON (no markdown, no extra text):
+STRICT JSON OUTPUT FORMAT:
 {{
-    "main_product": {{
-        "name": "The product user is looking at",
-        "compatibility_score": 85.5,
-        "summary": "Detailed 2-3 sentence analysis of this product...",
-        "pros": ["Pro 1", "Pro 2", "Pro 3"],
-        "cons": ["Con 1", "Con 2"],
-        "price_analysis": {{
-            "verdict": "Good value / Overpriced / Great deal",
-            "warnings": ["Any pricing concerns"]
-        }},
-        "community_sentiment": {{
-            "trust_level": "High / Medium / Low",
-            "summary": "What real users say about this product...",
-            "red_flags": ["Any review concerns"]
-        }}
+    "outcome": "highly_recommended" OR "consider_alternatives",
+    "identified_product": "The specific product name identified",
+    "summary": "2-3 sentences. Is this a buy or pass? Explain why.",
+    "price_analysis": {{
+        "price_score": 0.0 to 1.0 (1.0 = great value),
+        "verdict": "Good Deal / Overpriced / Standard",
+        "details": "Price context vs market"
+    }},
+    "community_sentiment": {{
+        "trust_score": {trust_score} (0-10 float),
+        "summary": "What are users saying?",
+        "red_flags": {json.dumps(risk_report.get('hidden_flaws', []))}
     }},
     "alternatives": [
         {{
-            "name": "Alternative Product Name",
-            "compatibility_score": 75.0,
-            "summary": "Short 1-2 sentence description so user can decide for themselves",
-            "pros": ["Key strength 1", "Key strength 2"],
-            "cons": ["Key weakness"],
-            "why_consider": "Why this might be better for some users"
+            "name": "Alt Product Name",
+            "score": 0.0 to 100.0,
+            "reason": "Why consider this?"
         }}
-    ],
-    "verdict": "Final recommendation: Should user buy the main product or consider alternatives?"
+    ]
 }}
 """
     
@@ -149,8 +130,8 @@ Return ONLY valid JSON (no markdown, no extra text):
         logger.error(f"Response Generation Error: {e}")
         # Use fallback instead of exposing error details to frontend
         final_payload = _build_fallback_response(analysis, alternatives_analysis, risk_report)
-        final_payload["verdict"] = "error"
-        final_payload["main_product"]["summary"] = "We encountered an issue generating your recommendation. Please try again."
+        final_payload["outcome"] = "error"
+        final_payload["summary"] = "We encountered an issue generating your recommendation. Please try again."
     
     log_debug("Response Node Completed")
     return {"final_recommendation": final_payload}
@@ -164,7 +145,7 @@ def _build_fallback_response(analysis: dict, alternatives_analysis: list, risk_r
     main_product = analysis.get('recommended_product', 'Unknown Product')
     match_score = analysis.get('match_score', 0)
     
-    # Build alternatives list with summaries (skip the main product)
+    # Build alternatives list
     alternatives = []
     # Get details from alternatives_analysis if available
     alt_details = {a.get('name'): a for a in alternatives_analysis}
@@ -174,31 +155,23 @@ def _build_fallback_response(analysis: dict, alternatives_analysis: list, risk_r
         detail = alt_details.get(name, {})
         alternatives.append({
             "name": name,
-            "compatibility_score": alt.get('score', 0),
-            "summary": detail.get('sentiment_summary', 'Alternative option worth considering'),
-            "pros": ["Competitive option"],
-            "cons": [],
-            "why_consider": alt.get('reason', 'Could be a good fit depending on your priorities')
+            "score": alt.get('score', 0),
+            "reason": alt.get('reason', 'Alternative option')
         })
     
     return {
-        "main_product": {
-            "name": main_product,
-            "compatibility_score": match_score,
-            "summary": f"Based on your preferences, this product is a {match_score:.0f}% match for you.",
-            "pros": ["Good match for your criteria"],
-            "cons": risk_report.get('hidden_flaws', []),
-            "price_analysis": {
-                "verdict": risk_report.get('price_integrity', 'Unknown'),
-                "warnings": []
-            },
-            "community_sentiment": {
-                "trust_level": "Medium",
-                "summary": f"Review authenticity: {risk_report.get('fake_review_likelihood', 'Unknown')}",
-                "red_flags": risk_report.get('hidden_flaws', [])
-            }
+        "outcome": "highly_recommended" if match_score >= 70 else "consider_alternatives",
+        "identified_product": main_product,
+        "summary": f"Based on your preferences, this product is a {match_score:.0f}% match for you.",
+        "price_analysis": {
+            "price_score": 0.5,
+            "verdict": risk_report.get('price_integrity', 'Unknown'),
+            "details": "Price analysis unavailable"
         },
-        "alternatives": alternatives,
-        "verdict": "highly_recommended" if match_score >= 70 else "consider_alternatives"
+        "community_sentiment": {
+            "trust_score": 5.0,
+            "summary": f"Review authenticity: {risk_report.get('fake_review_likelihood', 'Unknown')}",
+            "red_flags": risk_report.get('hidden_flaws', [])
+        },
+        "alternatives": alternatives
     }
-

@@ -3,10 +3,23 @@ from typing import List, Dict, Any
 from app.schemas.types import ProductQuery, PriceOffer
 from app.core.config import settings
 
+import hashlib
+import json
+from app.services.snowflake_cache import snowflake_cache_service
+
 SERPAPI_URL = "https://serpapi.com/search.json"
 
 
 def get_shopping_offers(product: ProductQuery, trace: list) -> List[PriceOffer]:
+    # --- Check Cache ---
+    cache_key = f"serpapi:offers:{hashlib.md5(product.canonical_name.encode()).hexdigest()}"
+    cached_data = snowflake_cache_service.get(cache_key)
+    
+    if cached_data:
+        trace.append({"step": "serpapi", "detail": f"Cache Hit ({len(cached_data)} offers)"})
+        return [PriceOffer(**item) for item in cached_data]
+    # -------------------
+
     api_key = settings.SERPAPI_API_KEY
 
     if not api_key:
@@ -22,42 +35,59 @@ def get_shopping_offers(product: ProductQuery, trace: list) -> List[PriceOffer]:
         "api_key": api_key,
     }
 
-    r = requests.get(SERPAPI_URL, params=params, timeout=10)
-    data = r.json()
+    try:
+        r = requests.get(SERPAPI_URL, params=params, timeout=10)
+        data = r.json()
 
-    if "error" in data:
-        trace.append({"step": "serpapi", "detail": f"API Error: {data['error']}"})
-        return []
+        if "error" in data:
+            trace.append({"step": "serpapi", "detail": f"API Error: {data['error']}"})
+            return []
 
-    offers = []
+        offers = []
 
-    for item in data.get("shopping_results", []):
-        # SerpAPI uses "price" (e.g. "$5.88") or "extracted_price" (numeric)
-        price_str = item.get("price") or item.get("extracted_price") or ""
-        if isinstance(price_str, (int, float)):
-            price_cents = int(price_str * 100)
-        else:
-            price_str = str(price_str).replace("$", "").replace(",", "").strip()
-            try:
-                price_cents = int(float(price_str) * 100)
-            except (ValueError, TypeError):
+        for item in data.get("shopping_results", []):
+            # SerpAPI uses "price" (e.g. "$5.88") or "extracted_price" (numeric)
+            price_str = item.get("price") or item.get("extracted_price") or ""
+            if isinstance(price_str, (int, float)):
+                price_cents = int(price_str * 100)
+            else:
+                price_str = str(price_str).replace("$", "").replace(",", "").strip()
+                try:
+                    price_cents = int(float(price_str) * 100)
+                except (ValueError, TypeError):
+                    continue
+
+            # SerpAPI Google Shopping uses "product_link", not "link"
+            link = item.get("product_link") or item.get("link")
+            if not link:
                 continue
-
-        # SerpAPI Google Shopping uses "product_link", not "link"
-        link = item.get("product_link") or item.get("link")
-        if not link:
-            continue
-        offers.append(
-            PriceOffer(
-                vendor=item.get("source") or "Unknown",
-                price_cents=price_cents,
-                currency="CAD",
-                url=link,
+            offers.append(
+                PriceOffer(
+                    vendor=item.get("source") or "Unknown",
+                    price_cents=price_cents,
+                    currency="CAD",
+                    url=link,
+                )
             )
-        )
 
-    trace.append({"step": "serpapi", "detail": f"Found {len(offers)} offers"})
-    return offers
+        trace.append({"step": "serpapi", "detail": f"Found {len(offers)} offers"})
+        
+        # --- Store in Cache ---
+        if offers:
+            # Cache for 15 minutes (prices change often)
+            snowflake_cache_service.set(
+                cache_key=cache_key,
+                cache_type="serpapi_offers",
+                params={"product": product.model_dump()},
+                result=[o.model_dump() for o in offers],
+                ttl_minutes=15
+            )
+        # ----------------------
+        
+        return offers
+    except Exception as e:
+        trace.append({"step": "serpapi", "detail": f"Request Failed: {e}"})
+        return []
 
 
 def check_single_price(query: str) -> str | None:

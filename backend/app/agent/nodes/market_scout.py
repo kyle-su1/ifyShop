@@ -74,15 +74,17 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
     # I'll implement a `search_alternatives` function in tavily_client.py in the next step.
     # For this file, I'll assume it exists.
     
-    try:
-        from app.sources.tavily_client import search_market_context
-        # passing the first query as a primary search
-        main_query = queries[0]
-        context_results = search_market_context(main_query)
-        scout_results = context_results
-    except ImportError:
-         print("   [Scout] Error: search_market_context not implemented yet in tavily_client")
-         scout_results = []
+    # 3. Execute Search (Using Tavily)
+    from app.sources.tavily_client import search_market_context
+
+    main_query = queries[0]
+    scout_results = search_market_context(main_query)
+
+    if not scout_results:
+        print(f"   [Scout] Primary query '{main_query}' returned no results. Trying backup...")
+        # Fallback to broader query
+        backup_query = f"best alternatives to {product_name} 2026"
+        scout_results = search_market_context(backup_query)
 
     # 4. Extract Candidates using LLM
     print(f"   [Scout] Extracting candidates from {len(scout_results)} search results...")
@@ -142,7 +144,7 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
                 print("   [Scout] Checking Snowflake Vector DB for known alternatives...")
                 
                 embeddings = GoogleGenerativeAIEmbeddings(
-                    model="models/embedding-001", 
+                    model="models/gemini-embedding-001", 
                     google_api_key=settings.GOOGLE_API_KEY
                 )
                 query_vector = embeddings.embed_query(product_name)

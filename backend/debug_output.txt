@@ -592,3 +592,103 @@ Analysis Node Completed
 --- 5. Executing Response Node (The Speaker) ---
 Response Node Payload: {'main_product': {'name': 'Logitech Keyboards', 'compatibility_score': 46.1, 'summary': 'Logitech keyboards are presented as a reliable, non-mechanical alternative for gaming, potentially offering a balance between performance and affordability. However, the lack of specific review data makes it difficult to ascertain the actual user experience and overall quality.', 'pros': ['Reputable brand', 'Potentially more affordable than mechanical keyboards', 'May offer a quieter typing experience than mechanical keyboards'], 'cons': ['No specific review data available for analysis', 'May not offer the same level of customization as mechanical keyboards', 'Mechanical keyboards might provide a better gaming experience'], 'price_analysis': {'verdict': 'Markup', 'warnings': ['Prices may vary significantly across vendors, suggesting potential markup.', 'Prices do not include shipping or taxes, which can impact the total cost.']}, 'community_sentiment': {'trust_level': 'Low', 'summary': "There's no review data to assess user sentiment or trust. We don't know what real users think about this product.", 'red_flags': ['Lack of review data raises concerns about product quality and user satisfaction.']}}, 'alternatives': [{'name': 'Logitech Keyboards', 'compatibility_score': 46.1, 'summary': 'This is the same product as the main product, suggested as a top alternative to mechanical keyboards for gaming, offering reliable non-mechanical options. Consider this if you prefer a non-mechanical option from a reliable brand.', 'pros': ['Reputable brand', 'Potentially more affordable than mechanical keyboards'], 'cons': ['May not provide the same level of customization as mechanical keyboards', 'Mechanical keyboards might provide a better gaming experience'], 'why_consider': "If you're specifically looking for a non-mechanical keyboard from a trusted brand like Logitech, this is worth considering. It prioritizes reliability over the customizable feel of mechanical options."}, {'name': 'Keychron Keyboards', 'compatibility_score': 34.0, 'summary': "Keychron keyboards are recommended as a top alternative to mechanical keyboards for gaming. Consider this if you're open to mechanical keyboards and value customization.", 'pros': ['Highly customizable', 'Popular choice in the mechanical keyboard community'], 'cons': ['Potentially more expensive than non-mechanical options', 'May require some technical knowledge for customization'], 'why_consider': 'If you are interested in exploring mechanical keyboards, Keychron is a well-regarded brand known for its customization options. This is a good starting point for delving into the world of mechanical keyboards.'}, {'name': 'Corsair K100 Air', 'compatibility_score': 12.5, 'summary': 'The Corsair K100 Air is suggested as a good option for a full layout gaming keyboard. This might be a good choice if you prefer a full-sized keyboard with dedicated macro keys for gaming.', 'pros': ['Full layout with dedicated macro keys', 'Reputable brand in gaming peripherals'], 'cons': ['Potentially expensive', 'May be larger than some users prefer'], 'why_consider': 'If you need a full-sized keyboard with dedicated macro keys and trust the Corsair brand, the K100 Air could be a good option. It caters to users who prioritize functionality and brand recognition.'}], 'verdict': "Given the lack of review data for the main product and your preference for quality, it's difficult to recommend it without further research. Exploring the Keychron or Corsair alternatives would be wise, particularly if you're open to mechanical keyboards. Research specific models within those brands to find one that aligns with your budget and feature requirements.", 'active_product': {'name': None, 'bounding_box': None, 'detected_objects': [{'name': 'mechanical keyboard', 'bounding_box': [242, 272, 797, 792], 'confidence': 0.96}]}}
 Response Node Completed
+--- 1. Executing Vision Node (The Eye) ---
+User Query: Identify this product and find the best price and alternatives.
+Image Data Length: 7420
+Image successfully decoded from base64.
+Sending request to Gemini model...
+Gemini Response: {
+  "detected_objects": [
+    {
+      "name": "sneakers",
+      "bounding_box": [
+        151,
+        164,
+        635,
+        706
+      ],
+      "confidence": 0.99
+    },
+    {
+      "name": "sneakers",
+      "bounding_box": [
+        426,
+        266,
+        915,
+        786
+      ],
+      "confidence": 0.99
+    }
+  ],
+  "product_name": "Nike Tennis Shoes",
+  "context": "No visible text in the image to indicate price or store.",
+  "ambiguity_resolved": false
+}
+--- 2b. Executing Market Scout Node (The Explorer) ---
+--- 2. Executing Discovery Node (The Runner) ---
+Researching Product: Nike Tennis Shoes
+Starting Tavily search...
+Tavily found 15 reviews
+Starting SerpAPI search...
+SerpAPI found 40 offers
+Discovery Node Completed
+Market Scout Node Completed
+--- 3. Executing Critique Node (The Skeptic) ---
+Critique Output: {'fake_review_likelihood': "Medium. Several snippets are clearly marketing material directly from Nike's website or promotional content on YouTube. While these aren't necessarily 'fake' reviews, they lack the impartiality of genuine user reviews. The Reddit comments are more likely to be real, but are subjective anecdotes. There is also a concerning lack of reviews on some platforms.", 'price_integrity': "Markup. Prices for what appears to be the same shoes vary widely, with 'Nike Official' showing multiple different prices. There are also several instances of the same vendor having different prices for the same product. This suggests a lack of price transparency and potential for price gouging depending on model and availability.", 'hidden_flaws': ['Nike shoes may be too narrow for some people. New Balance is recommended for wide feet.', 'Shipping to Canada can be problematic with some vendors.', 'Durability can be an issue, although some shoes have a 6-month guarantee.', "Cushioning preference is subjective and varies from person to person. One person's 'best' cushioning might be another's 'worst'.", 'Limited reviews posted on some platforms.']}
+Critique Node Completed
+--- 4. Executing Analysis Node (The Brain) ---
+Scoring 7 candidates...
+Analysis Node Completed
+--- 5. Executing Response Node (The Speaker) ---
+Response Node Payload: {'outcome': 'highly_recommended', 'identified_product': 'ASICS', 'summary': 'ASICS are a highly recommended alternative to Nike, particularly for tennis enthusiasts. They are well-regarded for their comfort, cushioning, and stability, making them a great choice for daily training and walking.', 'price_analysis': {'price_score': 0.834, 'verdict': 'Standard', 'details': 'The price appears competitive within the market for similar high-quality tennis shoes.'}, 'community_sentiment': {'trust_score': 6.5, 'summary': 'Community sentiment suggests ASICS are a reliable and comfortable choice, especially for those seeking alternatives to Nike. Reviews highlight their cushioning and stability, making them suitable for various activities.', 'red_flags': []}, 'alternatives': [{'name': 'Adidas Barricade', 'score': 73.2, 'reason': 'Recommended for better durability compared to Nike Tennis Shoes, especially for heavier players.'}, {'name': 'Wilson Tennis Shoes', 'score': 71.0, 'reason': 'Considered a durable alternative to Nike Tennis Shoes.'}], 'active_product': {'name': 'ASICS', 'bounding_box': None, 'detected_objects': [{'name': 'sneakers', 'bounding_box': [151, 164, 635, 706], 'confidence': 0.99}, {'name': 'sneakers', 'bounding_box': [426, 266, 915, 786], 'confidence': 0.99}]}}
+Response Node Completed
+--- 1. Executing Vision Node (The Eye) ---
+User Query: Identify this product and find the best price and alternatives.
+Image Data Length: 7420
+Image successfully decoded from base64.
+Sending request to Gemini model...
+Gemini Response: {
+  "detected_objects": [
+    {
+      "name": "sneaker",
+      "bounding_box": [
+        151,
+        164,
+        635,
+        706
+      ],
+      "confidence": 0.99
+    },
+    {
+      "name": "sneaker",
+      "bounding_box": [
+        426,
+        266,
+        915,
+        786
+      ],
+      "confidence": 0.99
+    }
+  ],
+  "product_name": "Nike Air Max Dn",
+  "context": null,
+  "ambiguity_resolved": true
+}
+--- 2. Executing Discovery Node (The Runner) ---
+--- 2b. Executing Market Scout Node (The Explorer) ---
+Researching Product: Nike Air Max Dn
+Starting Tavily search...
+Tavily found 15 reviews
+Starting SerpAPI search...
+SerpAPI found 40 offers
+Discovery Node Completed
+Market Scout Node Completed
+--- 3. Executing Critique Node (The Skeptic) ---
+Critique Output: {'fake_review_likelihood': "Medium. Several reviews are short and generic ('comfy as hell'). The '5/5 breathability' is suspiciously perfect. Also, multiple reviews simply repeat Nike's marketing copy about the 'Dynamic Air unit'. There's also at least one review that mentions the shoe wasn't even released yet, which is a red flag.", 'price_integrity': "Markup. The price range is *extremely* wide (CAD $118 - $481). This suggests significant markups by certain vendors, especially Amazon. Some retailers are clearly trying to capitalize on the shoe's popularity. Discounts at Nike outlets are mentioned, so the MSRP is likely lower than what many are charging.", 'hidden_flaws': ['Inconsistent pricing across retailers.', 'Potential for inflated pricing on Amazon.', 'Some reviews appear to be based on marketing materials rather than actual use.', 'Availability may vary, with some outlets offering significant discounts.']}
+Critique Node Completed
+--- 4. Executing Analysis Node (The Brain) ---
+Scoring 7 candidates...
+Analysis Node Completed
+--- 5. Executing Response Node (The Speaker) ---
+Response Node Payload: {'outcome': 'consider_alternatives', 'identified_product': 'New Balance 2002r', 'summary': 'The New Balance 2002r is a stylish and potentially comfortable shoe, but concerns about review authenticity and price inconsistencies make it wise to consider alternatives. While the overall score is good, the risk report raises enough flags to warrant caution before purchasing.', 'price_analysis': {'price_score': 0.9166272874681491, 'verdict': 'Markup', 'details': 'The price range is extremely wide, suggesting significant markups by certain vendors, especially on Amazon. Discounts at Nike outlets are mentioned, suggesting a lower MSRP.'}, 'community_sentiment': {'trust_score': 5.5, 'summary': 'While some reviews praise the comfort and style, there are red flags regarding the authenticity of some reviews. Some appear generic or based on marketing material, and there are concerns about inflated pricing.', 'red_flags': ['Inconsistent pricing across retailers.', 'Potential for inflated pricing on Amazon.', 'Some reviews appear to be based on marketing materials rather than actual use.', 'Availability may vary, with some outlets offering significant discounts.']}, 'alternatives': [{'name': 'Nike Zoom Vomero+', 'score': 74.3, 'reason': 'Cushioning shoe, alternative to Air Max.'}, {'name': 'Diadora N.92', 'score': 66.5, 'reason': 'Comparable in looks and comfort to the Nike Air Max.'}, {'name': 'Nike Air Max Dn', 'score': 56.8, 'reason': 'Original Selection'}], 'active_product': {'name': 'New Balance 2002r', 'bounding_box': None, 'detected_objects': [{'name': 'sneaker', 'bounding_box': [151, 164, 635, 706], 'confidence': 0.99}, {'name': 'sneaker', 'bounding_box': [426, 266, 915, 786], 'confidence': 0.99}]}}
+Response Node Completed

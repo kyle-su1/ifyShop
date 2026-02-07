@@ -7,15 +7,17 @@
 
   color-scheme: dark;
   /* Linear-style base colors */
-  --background: #0B0C10; /* Very deep dark */
+  --background: #0B0C10;
+  /* Very deep dark */
   --foreground: #E0E0E0;
-  
+
   --card-bg: rgba(255, 255, 255, 0.03);
   --card-border: rgba(255, 255, 255, 0.08);
-  
-  --primary: #5E6AD2; /* Linear Purple/Blueish */
+
+  --primary: #5E6AD2;
+  /* Linear Purple/Blueish */
   --primary-hover: #727DE4;
-  
+
   /* Glassmorphism helpers */
   --glass-bg: rgba(11, 12, 16, 0.7);
   --glass-border: rgba(255, 255, 255, 0.08);
@@ -39,13 +41,16 @@ body {
 ::-webkit-scrollbar {
   width: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
@@ -66,7 +71,44 @@ body {
   color: white;
   transition: all 0.2s ease;
 }
+
 .btn-primary:hover {
   background: var(--primary-hover);
   box-shadow: 0 0 15px rgba(94, 106, 210, 0.4);
+}
+
+@keyframes linear-scan {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  90% {
+    opacity: 1;
+  }
+
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+.animate-linear-scan {
+  animation: linear-scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
 }

@@ -50,150 +50,66 @@ class ImageAnalysisResponse(BaseModel):
     labels: List[dict] = []
 
 
-@router.post("/analyze-image", response_model=ImageAnalysisResponse)
+@router.post("/analyze-image")
 async def analyze_image(request: ImageAnalysisRequest):
     """
-    Analyze an image using OpenRouter's GPT-4o Vision API.
-    Detects objects and returns their names, confidence scores, and bounding boxes.
+    Trigger the Full Agent Workflow:
+    1. Vision (Gemini 2.0 Flash)
+    2. Research (Tavily)
+    3. Market Scout
+    4. Skeptic Analysis
+    5. Final Response
     """
-    print("\n--- Vision Analysis Request Received ---")
+    print("\n--- Starting Full Agent Workflow ---")
     
-    # Get the OpenAI client (lazy initialization)
-    client = get_openai_client()
-
     if not request.imageBase64:
         raise HTTPException(status_code=400, detail="No image data provided")
 
+    # Clean base64 string
+    base64_data = request.imageBase64
+    if "base64," in base64_data:
+        base64_data = base64_data.split("base64,")[1]
+
+    # Initialize Agent State
+    initial_state = {
+        "user_query": "Identify this product and find the best price and alternatives.",
+        "image_base64": base64_data,
+        "user_preferences": {},  # Default preferences
+        "product_query": {},
+        "research_data": {},
+        "market_scout_data": {},
+        "risk_report": {},
+        "analysis_object": {},
+        "alternatives_analysis": [],
+        "final_recommendation": {}
+    }
+
     try:
-        # 1. Decode and Process Image
-        base64_data = request.imageBase64
-        if "base64," in base64_data:
-            base64_data = base64_data.split("base64,")[1]
-            
-        image_data = base64.b64decode(base64_data)
+        # Import the graph here to avoid circular dependencies at module level if any
+        from app.agent.graph import agent_app
         
-        # Open image using Pillow (supports HEIC via pillow_heif)
-        image = Image.open(io.BytesIO(image_data))
-        print(f"Original Image Format: {image.format}, Size: {image.size}")
-
-        # Convert to RGB (standardize)
-        if image.mode != "RGB":
-            image = image.convert("RGB")
-
-        # Resize if too large (max 2048x2048)
-        max_dimension = 2048
-        if max(image.size) > max_dimension:
-            image.thumbnail((max_dimension, max_dimension))
-            print(f"Resized to: {image.size}")
-
-        # Save to JPEG buffer
-        output_buffer = io.BytesIO()
-        image.save(output_buffer, format="JPEG", quality=85)
-        optimized_base64 = base64.b64encode(output_buffer.getvalue()).decode("utf-8")
+        # Invoke the graph
+        # This runs all nodes: Vision -> Research/Scout -> Skeptic -> Analysis -> Response
+        final_state = await agent_app.ainvoke(initial_state)
         
-        print(f"Image optimized. Sending to OpenRouter (gpt-4o)...")
-
-        # 2. Call OpenAI / OpenRouter
-        system_prompt = """
-            You are an expert object detection and identification system.
-            
-            TASK: Detect ALL objects in the image and identify them with maximum specificity.
-            
-            For EACH object:
-            1. "name": Look for visible text, logos, or distinctive features to identify:
-               - BEST: Exact brand + model (e.g., "Boston Dynamics Spot", "DeWalt DCD771C2 Drill")
-               - GOOD: Brand + type (e.g., "DeWalt Cordless Drill", "WEN Band Saw")
-               - FALLBACK: Descriptive name only if no branding visible (e.g., "Yellow Robotic Dog", "Red Fire Extinguisher")
-            
-            2. "confidence": Your confidence in the detection (0.0 to 1.0):
-               - 0.95-1.0 = Very clear, unobstructed, well-lit object
-               - 0.85-0.94 = Clear but partially occluded or at angle
-               - 0.70-0.84 = Visible but small, distant, or unclear
-               - Below 0.70 = Uncertain identification
-            
-            3. "box": Bounding box in STANDARD CV FORMAT [y_min, x_min, y_max, x_max] where:
-               - ALL values are decimals from 0.0 to 1.0 (normalized coordinates)
-               - y_min = distance from TOP edge to TOP of box (0.0 = top of image)
-               - x_min = distance from LEFT edge to LEFT of box (0.0 = left of image)
-               - y_max = distance from TOP edge to BOTTOM of box (1.0 = bottom of image)
-               - x_max = distance from LEFT edge to RIGHT of box (1.0 = right of image)
-            
-            Return ONLY valid JSON: {"objects": [{"name": "...", "confidence": 0.95, "box": [y_min, x_min, y_max, x_max]}]}
-        """
-
-        response = client.chat.completions.create(
-            model="openai/gpt-4o",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Detect and identify all objects."},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{optimized_base64}",
-                                "detail": "high"
-                            },
-                        },
-                    ],
-                },
-            ],
-            max_tokens=1500,
-        )
-
-        content = response.choices[0].message.content
-        print("OpenAI Raw Response (truncated):", content[:200] + "...")
-
-        # 3. Parse and Map Response
-        clean_content = content.replace("```json", "").replace("```", "").strip()
-        result = json.loads(clean_content)
+        result = final_state.get("final_recommendation", {})
         
-        mapped_objects = []
-        for obj in result.get("objects", []):
-            # Handle box format
-            box = obj.get("box") or obj.get("box_2d")
-            if box:
-                ymin, xmin, ymax, xmax = box
-                
-                # Normalize if needed (0-1000 scale)
-                if ymin > 1 or xmin > 1 or ymax > 1 or xmax > 1:
-                    ymin /= 1000; xmin /= 1000; ymax /= 1000; xmax /= 1000
+        if not result:
+            print("WARNING: Graph completed but returned empty final_recommendation.")
+            # Fallback
+            return {
+                "outcome": "error",
+                "summary": "The agent completed analysis but returned no data.",
+                "active_product": {"name": "Unknown", "detected_objects": []}
+            }
+            
+        return result
 
-                # Clamp
-                ymin = max(0, min(1, ymin))
-                xmin = max(0, min(1, xmin))
-                ymax = max(0, min(1, ymax))
-                xmax = max(0, min(1, xmax))
-
-                bounding_poly = {
-                    "normalizedVertices": [
-                        {"x": xmin, "y": ymin},
-                        {"x": xmax, "y": ymin},
-                        {"x": xmax, "y": ymax},
-                        {"x": xmin, "y": ymax}
-                    ]
-                }
-            else:
-                bounding_poly = None
-
-            mapped_objects.append(DetectedObject(
-                name=obj["name"],
-                score=obj.get("confidence", 0.95),
-                openAiLabel=obj["name"],
-                boundingPoly=bounding_poly
-            ))
-
-        print(f"Successfully mapped {len(mapped_objects)} objects.")
-        
-        return ImageAnalysisResponse(objects=mapped_objects, labels=[])
-
-    except json.JSONDecodeError as e:
-        print(f"JSON parsing error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to parse AI response: {str(e)}")
     except Exception as e:
-        print(f"Error processing request: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Error executing agent workflow: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Agent workflow failed: {str(e)}")
 
 
 class RecommendationRequest(BaseModel):
@@ -207,10 +123,8 @@ class RecommendationResponse(BaseModel):
 
 @router.post("/recommend", response_model=RecommendationResponse)
 async def recommend_items(request: RecommendationRequest):
-    # Placeholder for Agentic recommendation logic
+    # This endpoint can be used for follow-up refinements
+    # For now, it's a placeholder or can reuse the graph with updated preferences
     return {
-        "items": [
-            {"id": 1, "name": "Recommended Item 1", "reason": "Matches your cost preference"},
-            {"id": 2, "name": "Recommended Item 2", "reason": "High quality match"}
-        ]
+        "items": []
     }

@@ -109,9 +109,10 @@ This phase runs two parallel agents to gather deep data.
 *   **Input**: Structured Product Query + User Preferences.
 *   **Goal**: Find relevant *alternatives* based on the user's needs.
 *   **Tools**:
-    *   **Tavily Search**: For live web results.
-    *   **Snowflake Vector Search**: For internal product catalog similarity (Cosine Similarity).
+    *   **Tavily Search**: For live web results (External Discovery).
+    *   **Snowflake Vector Search**: For internal product catalog similarity (Internal Discovery).
 *   **Model**: **Gemini 2.0 Flash** (`gemini-2.0-flash`) for fast candidate extraction.
+*   **Strategy**: Hybrid Discovery (Internal + External Fusion).
 
 ### **Node 3: The Skeptic (Critique & Verification)**
 *   **Input**: Raw product data (Main Item) + Alternative Candidates (Scout).
@@ -214,18 +215,19 @@ The final payload sent to the frontend includes the active product data for visu
 
 ## 6. Database Strategy
 
-**Selected Path**: PostgreSQL (containerized) for all data.
+**Selected Path**: Hybrid (PostgreSQL + Snowflake).
 
-*   **Users & Auth**: User profiles, preferences, session data
-*   **Search History**: Past queries and recommendations
-*   **Sessions**: Active chat sessions with state checkpoints
-*   **Future**: Can add pgvector for vector search if needed
+*   **Users & Auth**: PostgreSQL (User profiles, preferences, session data).
+*   **Product Catalog & Vectors**: Snowflake (Schema: `CXC_APP.PUBLIC.PRODUCTS`).
+    *   **Vector Search**: Uses `VECTOR(FLOAT, 3072)` (Gemini-001) and `VECTOR_COSINE_SIMILARITY`.
+    *   **Purpose**: Enabling scalable "Check Internal Database" lookups for the Agent.
+    *   **Embedding Model**: `models/gemini-embedding-001`.
 
 ---
 
-## 7. Redis Caching Strategy
+## 7. Snowflake Caching Strategy
 
-Redis is used to **dramatically reduce latency** and **minimize API costs** by caching repeated queries. This is critical for the "wow factor" of speed.
+Snowflake is used to **reduce latency** and **minimize API costs** by caching repeated queries in a dedicated cache table. This leverages our existing Snowflake connection.
 
 ### **Cache Architecture**
 ```
@@ -235,10 +237,10 @@ Redis is used to **dramatically reduce latency** and **minimize API costs** by c
 │  User Request                                                │
 │       │                                                      │
 │       ▼                                                      │
-│  ┌─────────┐    cache hit     ┌─────────────┐               │
-│  │  Redis  │ ───────────────► │  Instant    │               │
-│  │  Cache  │                  │  Response   │               │
-│  └─────────┘                  └─────────────┘               │
+│  ┌───────────────┐  cache hit   ┌─────────────┐             │
+│  │  QUERY_CACHE  │ ───────────► │  Fast       │             │
+│  │    (Table)    │              │  Response   │             │
+│  └───────────────┘              └─────────────┘             │
 │       │                                                      │
 │       │ cache miss                                           │
 │       ▼                                                      │
@@ -248,21 +250,32 @@ Redis is used to **dramatically reduce latency** and **minimize API costs** by c
 │       │                                                      │
 │       │ cache result                                         │
 │       ▼                                                      │
-│  ┌─────────┐                                                │
-│  │  Redis  │                                                │
-│  └─────────┘                                                │
+│  ┌───────────────┐                                          │
+│  │  QUERY_CACHE  │  (with TTL expiry)                       │
+│  └───────────────┘                                          │
 └─────────────────────────────────────────────────────────────┘
+```
+
+### **Cache Table Schema**
+```sql
+CREATE TABLE IF NOT EXISTS CXC_APP.PUBLIC.QUERY_CACHE (
+    cache_key VARCHAR(64) PRIMARY KEY,    -- MD5 hash of query params
+    cache_type VARCHAR(50),               -- 'tavily', 'serpapi', 'skeptic'
+    query_params VARIANT,                 -- Original request params (JSON)
+    cached_result VARIANT,                -- Response data (JSON)
+    created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    expires_at TIMESTAMP_NTZ,             -- For TTL filtering
+    hit_count INT DEFAULT 0               -- Analytics
+);
 ```
 
 ### **Cache Keys & TTLs**
 
-| Data Type | Key Pattern | TTL | Rationale |
-|-----------|------------|-----|-----------|
-| **Tavily Search** | `tavily:{hash(query)}` | 1 hour | Search results change slowly |
-| **SerpAPI Prices** | `serpapi:{hash(product_name)}` | 15 minutes | Prices fluctuate more often |
-| **Vision Detection** | `vision:{hash(image_base64[:100])}` | 24 hours | Same image = same objects |
-| **Skeptic Analysis** | `skeptic:{product_name}:{hash(reviews)}` | 30 minutes | Reviews don't change within session |
-| **LLM Responses** | `llm:{model}:{hash(prompt)}` | 10 minutes | For identical prompts only |
+| Data Type | Key Pattern | TTL | expires_at Calculation |
+|-----------|------------|-----|------------------------|
+| **Tavily Search** | `tavily:{hash(query)}` | 1 hour | `DATEADD(hour, 1, CURRENT_TIMESTAMP())` |
+| **SerpAPI Prices** | `serpapi:{hash(product_name)}` | 15 minutes | `DATEADD(minute, 15, CURRENT_TIMESTAMP())` |
+| **Skeptic Analysis** | `skeptic:{product}:{hash(reviews)}` | 30 minutes | `DATEADD(minute, 30, CURRENT_TIMESTAMP())` |
 
 ### **Implementation Example (Python)**
 ```python
@@ -348,4 +361,12 @@ docker-compose up -d
 | **Node 3: Skeptic** | `gemini-2.0-flash` | Deep reasoning for fake review detection |
 | **Node 4: Analysis** | `gemini-2.0-flash` | Complex multi-factor scoring and ranking |
 | **Node 5: Response** | `gemini-2.0-flash` | Fast formatting and data aggregation |
-| **Node 6: Chat** | `gemini-2.0-flash` | Context-aware conversation with reasoning |
+### **Node 6: Chat/Refinement Loop (The "Conversation")**
+*   **Trigger**: User sends a follow-up message (e.g., "What about the warranty?", "Find a cheaper one").
+*   **Model**: **Gemini 1.5 Pro** (`gemini-1.5-pro`).
+    > **Model Selection**: Chat requires understanding context, recalling previous analysis, and reasoning about new user intents.
+*   **Input**: Chat History + Previous Context + Session State.
+*   **Action**: 
+    1.  **Direct Answer**: If the answer is in the context, reply directly.
+    2.  **Re-Research**: Loop back to **Node 2 (Research/Scout)** if new data is needed (e.g., "Find cheaper ones").
+    3.  **Preference Update**: If the user states a preference (e.g., "I hate red"), update the **User Preferences** in Postgres and re-run **Node 4 (Analysis)**.

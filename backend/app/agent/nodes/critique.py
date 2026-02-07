@@ -23,6 +23,21 @@ def node_skeptic_critique(state: AgentState) -> Dict[str, Any]:
     
     research_results = state.get('research_data', {})
     
+    # --- Check Cache ---
+    import hashlib
+    from app.services.snowflake_cache import snowflake_cache_service
+    
+    # Generate stable key from research data
+    data_str = json.dumps(research_results, sort_keys=True)
+    items_hash = hashlib.md5(data_str.encode()).hexdigest()
+    cache_key = f"skeptic:analysis:{items_hash}"
+    
+    cached_report = snowflake_cache_service.get(cache_key)
+    if cached_report:
+        log_debug(f"Critique Cache Hit! ({cache_key})")
+        return {"risk_report": cached_report}
+    # -------------------
+
     # Initialize Skeptic Agent
     llm = ChatGoogleGenerativeAI(model=settings.MODEL_REASONING, google_api_key=settings.GOOGLE_API_KEY)
     
@@ -45,6 +60,17 @@ def node_skeptic_critique(state: AgentState) -> Dict[str, Any]:
         content = response.content.replace('```json', '').replace('```', '').strip()
         risk_report = json.loads(content)
         log_debug(f"Critique Output: {risk_report}")
+        
+        # --- Store in Cache ---
+        snowflake_cache_service.set(
+            cache_key=cache_key,
+            cache_type="skeptic_analysis",
+            params={"data_hash": items_hash}, # Don't store full input if huge
+            result=risk_report,
+            ttl_minutes=30 
+        )
+        # ----------------------
+        
     except Exception as e:
         print(f"Skeptic Error: {e}")
         log_debug(f"Skeptic Error: {e}")

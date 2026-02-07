@@ -8,10 +8,21 @@ CREATE TABLE IF NOT EXISTS products (
     price FLOAT,
     image_url TEXT,
     source_url TEXT,
-    -- Vector embedding (768 dimensions for mistral/llama/gemini embeddings)
-    embedding VECTOR(FLOAT, 768), 
+    -- Vector embedding (3072 dimensions for gemini-embedding-001)
+    embedding VECTOR(FLOAT, 3072), 
     metadata VARIANT,
     created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+-- 4. Create Cache Table
+CREATE TABLE IF NOT EXISTS QUERY_CACHE (
+    cache_key VARCHAR(64) PRIMARY KEY,
+    cache_type VARCHAR(50),
+    query_params VARIANT,
+    cached_result VARIANT,
+    created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    expires_at TIMESTAMP_NTZ,
+    hit_count INT DEFAULT 0
 );
 
 -- 2. Create Reviews Table (optional, for historical data)

@@ -5,6 +5,8 @@ import LogoutButton from '../components/LogoutButton'
 import { useAuth0 } from '@auth0/auth0-react'
 import { analyzeImage } from '../lib/api'
 import BoundingBoxOverlay from '../components/BoundingBoxOverlay';
+import ScanningOverlay from '../components/ScanningOverlay';
+import AgentStatusDisplay from '../components/AgentStatusDisplay';
 
 const DashboardPage = () => {
     const { user, getAccessTokenSilently, isLoading, logout, isAuthenticated } = useAuth0()
@@ -17,6 +19,7 @@ const DashboardPage = () => {
     const [loading, setLoading] = useState(false);
     const [showAlternatives, setShowAlternatives] = useState(false);
     const [selectedObject, setSelectedObject] = useState(null);
+    const [agentStep, setAgentStep] = useState(0);
 
     // Initialize selectedObject when analysis results load
     useEffect(() => {
@@ -39,15 +42,33 @@ const DashboardPage = () => {
     const handleAnalyze = async () => {
         if (!imageFile) return;
         setIsAnalyzing(true);
+        setAgentStep(0);
+        setAnalysisResult(null);
+
+        // Simulate agent steps progress
+        // Ideally this would be driven by WebSocket events
+        const stepInterval = setInterval(() => {
+            setAgentStep(prev => (prev < 4 ? prev + 1 : prev));
+        }, 1200);
+
         try {
             const token = await getAccessTokenSilently();
             const result = await analyzeImage(imageFile, token);
-            setAnalysisResult(result);
+
+            clearInterval(stepInterval);
+            setAgentStep(5); // Mark as complete
+
+            // Small delay to show completion state before revealing results
+            setTimeout(() => {
+                setAnalysisResult(result);
+                setIsAnalyzing(false);
+            }, 600);
+
         } catch (error) {
+            clearInterval(stepInterval);
             console.error("Analysis failed:", error);
             const errorMessage = error.response?.data?.detail || error.message || "Unknown error";
             alert(`Failed to analyze image: ${errorMessage} `);
-        } finally {
             setIsAnalyzing(false);
         }
     };
@@ -133,6 +154,10 @@ const DashboardPage = () => {
                                         alt="Analyzed Item"
                                         className="w-full h-auto object-cover max-h-[400px]"
                                     />
+
+                                    {/* SCANNING OVERLAY */}
+                                    <ScanningOverlay isScanning={isAnalyzing} />
+
                                     {/* MULTI-OBJECT BOUNDING BOX OVERLAY */}
                                     {analysisResult?.active_product && (
                                         <>
@@ -259,18 +284,7 @@ const DashboardPage = () => {
                                     </div>
                                 </div>
                             ) : isAnalyzing ? (
-                                <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
-                                    <div className="relative">
-                                        <div className="w-16 h-16 rounded-full border-2 border-dashed border-white/20 animate-[spin_10s_linear_infinite]"></div>
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <div className="w-8 h-8 rounded-full bg-indigo-500/20 animate-pulse"></div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <p className="text-white font-medium">Analyzing Visual Data</p>
-                                        <p className="text-sm text-gray-500 mt-1">Extracting features and identifying products...</p>
-                                    </div>
-                                </div>
+                                <AgentStatusDisplay activeStep={agentStep} />
                             ) : (
                                 <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4 py-12">
                                     <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-2 group-hover:bg-white/10 transition-colors">
