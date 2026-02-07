@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import ImageUploader from '../components/ImageUploader'
 import LogoutButton from '../components/LogoutButton'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -15,6 +15,18 @@ const DashboardPage = () => {
     const [activeProductHover, setActiveProductHover] = useState(false);
     const [analyzedImage, setAnalyzedImage] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [showAlternatives, setShowAlternatives] = useState(false);
+    const [selectedObject, setSelectedObject] = useState(null);
+
+    // Initialize selectedObject when analysis results load
+    useEffect(() => {
+        if (analysisResult?.active_product?.detected_objects?.length > 0) {
+            setSelectedObject(analysisResult.active_product.detected_objects[0]);
+        } else if (analysisResult?.active_product) {
+            // Fallback to active_product itself
+            setSelectedObject(analysisResult.active_product);
+        }
+    }, [analysisResult]);
 
 
     const handleImageSelected = (file, base64) => {
@@ -131,6 +143,8 @@ const DashboardPage = () => {
                                                         key={idx}
                                                         boundingBox={obj.bounding_box}
                                                         label={`${obj.name} (${Math.round((obj.confidence || 0) * 100)}%)`}
+                                                        isSelected={selectedObject?.name === obj.name}
+                                                        onClick={() => setSelectedObject(obj)}
                                                         onHover={(isHovering) => {
                                                             if (isHovering) setActiveProductHover(true);
                                                             else setActiveProductHover(false);
@@ -164,7 +178,12 @@ const DashboardPage = () => {
 
                                     {/* Main Product Identity */}
                                     <div>
-                                        <h4 className="text-lg font-semibold text-white mb-1">{analysisResult.identified_product || "Unknown Product"}</h4>
+                                        <h4 className="text-lg font-semibold text-white mb-1">
+                                            {selectedObject?.name || analysisResult.identified_product || "Unknown Product"}
+                                            {selectedObject?.confidence && (
+                                                <span className="ml-2 text-sm font-normal text-cyan-400">({Math.round(selectedObject.confidence * 100)}% confidence)</span>
+                                            )}
+                                        </h4>
                                         <p className="text-gray-400 text-sm leading-relaxed">{analysisResult.summary}</p>
                                     </div>
 
@@ -186,9 +205,29 @@ const DashboardPage = () => {
                                         </div>
                                     </div>
 
-                                    {/* Alternatives List */}
-                                    {analysisResult.alternatives && analysisResult.alternatives.length > 0 && (
-                                        <div>
+                                    {/* Action Buttons */}
+                                    <div className="flex gap-3 pt-2">
+                                        <button
+                                            onClick={() => setShowAlternatives(!showAlternatives)}
+                                            className="flex-1 py-2 px-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 group"
+                                        >
+                                            {showAlternatives ? (
+                                                <>
+                                                    <span>Hide Alternatives</span>
+                                                    <svg className="w-4 h-4 rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span>View Alternatives (Node 2b)</span>
+                                                    <svg className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+
+                                    {/* Alternatives List (Hidden by default) */}
+                                    {showAlternatives && analysisResult.alternatives && analysisResult.alternatives.length > 0 && (
+                                        <div className="animate-fade-in pt-4 border-t border-white/5 mt-4">
                                             <span className="text-xs text-gray-500 uppercase tracking-widest block mb-3">Comparison</span>
                                             <div className="space-y-3">
                                                 {analysisResult.alternatives.map((alt, idx) => (

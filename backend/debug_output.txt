@@ -352,3 +352,243 @@ Analysis Node Completed
 --- 5. Executing Response Node (The Speaker) ---
 Response Node Payload: {'outcome': 'highly_recommended', 'identified_product': 'Tombot', 'summary': "Based on your preferences and our analysis, the Tombot stands out as a great choice, scoring 71.9! It's designed to provide emotional support, especially for seniors, which aligns well with prioritizing trust and quality. While other options like the Loona Robot are interactive and mimic dog-like behavior, the Tombot's focus on emotional support makes it a top pick. The Aibo, another AI-driven dog, scored lower, suggesting it might not be the best fit for your specific needs.", 'price_analysis': {'price_score': 0.958999603397705, 'weighted_price': 0.4794998016988525, 'price_sensitivity': 0.5}, 'community_sentiment': {'trust_score': 4.5, 'sentiment_score': 0.6, 'weighted_trust': 0.18000000000000002}, 'alternatives': [{'name': 'Tombot', 'score': 71.9, 'reason': 'Provides emotional support, especially for seniors.'}, {'name': 'Loona Robot', 'score': 60.5, 'reason': 'Mimics the actions of a dog and is highly interactive.'}, {'name': 'Aibo', 'score': 37.9, 'reason': 'AI-driven dog with lifelike behavior.'}, {'name': 'Main Product', 'score': 35.7, 'reason': 'Original Selection'}], 'active_product': {'name': 'Tombot', 'bounding_box': None, 'detected_objects': [{'name': 'yellow robot dog', 'bounding_box': [747, 253, 996, 609], 'confidence': 0.95}, {'name': 'metal shelving unit', 'bounding_box': [127, 531, 679, 785], 'confidence': 0.9}, {'name': 'band saw', 'bounding_box': [137, 63, 485, 197], 'confidence': 0.8}]}}
 Response Node Completed
+--- 1. Executing Vision Node (The Eye) ---
+User Query: What is this item?
+Image Data Length: 1364754
+Image successfully decoded from base64.
+Sending request to Gemini model...
+Gemini Response: {
+  "detected_objects": [
+    {
+      "name": "yellow robot",
+      "bounding_box": [
+        699,
+        255,
+        984,
+        602
+      ],
+      "confidence": 0.97
+    },
+    {
+      "name": "table",
+      "bounding_box": [
+        414,
+        188,
+        676,
+        451
+      ],
+      "confidence": 0.88
+    },
+    {
+      "name": "tool rack",
+      "bounding_box": [
+        94,
+        531,
+        681,
+        777
+      ],
+      "confidence": 0.93
+    },
+    {
+      "name": "band saw",
+      "bounding_box": [
+        138,
+        57,
+        511,
+        195
+      ],
+      "confidence": 0.95
+    },
+    {
+      "name": "table",
+      "bounding_box": [
+        278,
+        0,
+        621,
+        104
+      ],
+      "confidence": 0.79
+    },
+    {
+      "name": "laser cutter",
+      "bounding_box": [
+        298,
+        204,
+        422,
+        390
+      ],
+      "confidence": 0.86
+    }
+  ],
+  "product_name": "yellow robot",
+  "context": null,
+  "ambiguity_resolved": true
+}
+--- 2. Executing Discovery Node (The Runner) ---
+--- 2b. Executing Market Scout Node (The Explorer) ---
+Researching Product: yellow robot
+Starting Tavily search...
+Tavily found 15 reviews
+Starting SerpAPI search...
+SerpAPI found 40 offers
+Discovery Node Completed
+Market Scout Node Completed
+--- 3. Executing Critique Node (The Skeptic) ---
+Critique Output: {'fake_review_likelihood': "Medium. While there's a TikTok trend, which isn't inherently fake, the reviews are generally very vague. The 'Yellow Robot Marketing' company on Goodfirms and Clutch has no reviews, and both sites prompt users to write one, suggesting a lack of organic feedback. The Reddit commentary ranges from negative ('yellow robot is a mistake') to general price comparisons. The TikTok reviews are unverifiable.", 'price_integrity': "Markup. The pricing for 'yellow robots' is extremely variable, ranging from under $10 CAD to tens of thousands. This suggests that 'yellow robot' is a very broad search term encompassing many different products. Without knowing the specific product, it's impossible to tell if any particular listing is a good deal or a markup, but the sheer range raises red flags. Some vendors like Ubuy have prices that are wildly higher than others, signaling potential overpricing.", 'hidden_flaws': ["The term 'yellow robot' is too broad, leading to a wide variety of products in search results. This makes direct price comparison difficult.", 'Many of the products listed are from marketplaces like eBay, Etsy, and AliExpress, which are known to have quality control issues and potential for scams.', 'Shipping costs are not consistently provided, making it difficult to determine the final price.', 'Refurbished Litter Robots have a history of error codes, according to a Reddit thread, which can lead to them being discarded by owners.', 'The yellow APS battery for Roomba is overpriced on some sites, even more than the iRobot website itself.']}
+Critique Node Completed
+--- 4. Executing Analysis Node (The Brain) ---
+Scoring 4 candidates...
+Analysis Node Completed
+--- 5. Executing Response Node (The Speaker) ---
+Response Node Payload: {'main_product': {'name': 'Richtech Robotics (RR)', 'compatibility_score': 46.1, 'summary': 'Richtech Robotics is presented as a potentially promising robotic stock for 2026 and has showcased its robots at CES. However, there are currently no user reviews available to analyze, which makes it difficult to assess its real-world performance and reliability.', 'pros': ['Potential for future growth as a robotic stock', 'Showcased latest robots at CES, indicating innovation'], 'cons': ['Lack of user reviews makes it difficult to assess real-world performance', "Compatibility score indicates it doesn't fully align with your preferences"], 'price_analysis': {'verdict': 'Unclear', 'warnings': ['Pricing is variable and difficult to assess without a specific product listing.', "The term 'yellow robot' is too broad, making price comparison unreliable."]}, 'community_sentiment': {'trust_level': 'Low', 'summary': 'There is no available user feedback, making trust assessment challenging.', 'red_flags': ['Absence of reviews raises concerns about product reliability and user satisfaction.']}}, 'alternatives': [{'name': 'Richtech Robotics (RR)', 'compatibility_score': 46.1, 'summary': "This is the same product you're currently looking at, mentioned for its potential as a robotic stock in 2026 and CES showcase.", 'pros': ['Potential for future growth', 'Innovative technology showcased at CES'], 'cons': ['No user reviews to validate performance', 'Compatibility score is low'], 'why_consider': "If you're interested in investing in robotics and are willing to take a risk on a company with limited user feedback."}, {'name': 'Roborock Saros 20', 'compatibility_score': 28.0, 'summary': 'The Roborock Saros 20 features advanced smart navigation and a sleek design, making it a recommended option for performance.', 'pros': ['Advanced smart navigation', 'Sleek design'], 'cons': ['No user reviews provided for detailed analysis', 'Compatibility score is very low'], 'why_consider': "If you prioritize smart navigation and aesthetics in a robot vacuum, but be aware that there's limited information available."}, {'name': 'Dreame X60 Max Ultra Complete', 'compatibility_score': 17.0, 'summary': 'The Dreame X60 Max Ultra Complete boasts advanced smart navigation and a sleek design, potentially offering good performance.', 'pros': ['Advanced smart navigation', 'Sleek design'], 'cons': ['No user reviews provided for detailed analysis', 'Very low compatibility score'], 'why_consider': "If you're drawn to its smart navigation and design, but remember that the compatibility score is low and there's a lack of reviews."}], 'verdict': "Given the lack of reviews and the 'Medium' fake review likelihood, the main product, Richtech Robotics (RR), is a risky choice. The alternatives also lack sufficient information. It's recommended to conduct further research or seek products with more established reviews and higher trust scores before making a decision.", 'active_product': {'name': None, 'bounding_box': None, 'detected_objects': [{'name': 'yellow robot', 'bounding_box': [699, 255, 984, 602], 'confidence': 0.97}, {'name': 'table', 'bounding_box': [414, 188, 676, 451], 'confidence': 0.88}, {'name': 'tool rack', 'bounding_box': [94, 531, 681, 777], 'confidence': 0.93}, {'name': 'band saw', 'bounding_box': [138, 57, 511, 195], 'confidence': 0.95}, {'name': 'table', 'bounding_box': [278, 0, 621, 104], 'confidence': 0.79}, {'name': 'laser cutter', 'bounding_box': [298, 204, 422, 390], 'confidence': 0.86}]}}
+Response Node Completed
+--- 1. Executing Vision Node (The Eye) ---
+User Query: What is this item?
+Image Data Length: 1364754
+Image successfully decoded from base64.
+Sending request to Gemini model...
+Gemini Response: {
+  "detected_objects": [
+    {
+      "name": "robot",
+      "bounding_box": [
+        "664",
+        "264",
+        "999",
+        "796"
+      ],
+      "confidence": 0.94
+    },
+    {
+      "name": "laser cutter",
+      "bounding_box": [
+        "306",
+        "232",
+        "412",
+        "314"
+      ],
+      "confidence": 0.81
+    },
+    {
+      "name": "band saw",
+      "bounding_box": [
+        "139",
+        "73",
+        "253",
+        "376"
+      ],
+      "confidence": 0.93
+    },
+    {
+      "name": "table",
+      "bounding_box": [
+        "398",
+        "228",
+        "514",
+        "510"
+      ],
+      "confidence": 0.81
+    },
+    {
+      "name": "work bench",
+      "bounding_box": [
+        "309",
+        "535",
+        "804",
+        "879"
+      ],
+      "confidence": 0.94
+    },
+    {
+      "name": "tool bench",
+      "bounding_box": [
+        "152",
+        "73",
+        "311",
+        "510"
+      ],
+      "confidence": 0.87
+    },
+    {
+      "name": "fire extinguisher",
+      "bounding_box": [
+        "528",
+        "453",
+        "569",
+        "514"
+      ],
+      "confidence": 0.8
+    },
+    {
+      "name": "air compressor",
+      "bounding_box": [
+        "576",
+        "483",
+        "610",
+        "546"
+      ],
+      "confidence": 0.76
+    }
+  ],
+  "product_name": "robot",
+  "context": "",
+  "ambiguity_resolved": true
+}
+--- 2. Executing Discovery Node (The Runner) ---
+--- 2b. Executing Market Scout Node (The Explorer) ---
+Researching Product: robot
+Starting Tavily search...
+Tavily found 15 reviews
+Starting SerpAPI search...
+SerpAPI found 40 offers
+Discovery Node Completed
+Market Scout Node Completed
+--- 3. Executing Critique Node (The Skeptic) ---
+Critique Output: {'fake_review_likelihood': 'Medium. Several snippets are from official websites (iRobot, Roborock) which are likely biased. There are also some reviews for a "Max Robot" toy which is clearly not the same as a robot vacuum, creating noise in the data. Reddit reviews are generally more trustworthy, but still need to be taken with a grain of salt.', 'price_integrity': "Markup. The price range for 'robot' is extremely wide (CAD $2.46 to CAD $98,428.57). This suggests the search term is too broad and includes many different types of robots, not just robot vacuums. It also indicates a potential for price gouging on some models, or simply different models being sold.", 'hidden_flaws': ['Some robot vacuums struggle with obstacle avoidance.', 'The usefulness of robot vacuums can be dependent on floor type (vinyl plank seems to be a common use case).', 'Users upgrading from older models (e.g., Shark R85) are looking for better floor coverage and room selection, suggesting these are common pain points.', 'LiDAR is a recommended feature, implying that robots without it may have navigation issues.']}
+Critique Node Completed
+--- 4. Executing Analysis Node (The Brain) ---
+Scoring 4 candidates...
+Analysis Node Completed
+--- 5. Executing Response Node (The Speaker) ---
+Response Node Payload: {'main_product': {'name': 'Roborock Saros 10R', 'compatibility_score': 37.9, 'summary': 'The Roborock Saros 10R is presented as a top alternative in robot vacuum sources, suggesting it is a popular choice. However, no reviews were available for analysis, making it difficult to assess its performance and reliability.', 'pros': ['Cited as a top alternative in multiple sources'], 'cons': ['No reviews available for detailed analysis', 'Potential navigation issues if it lacks LiDAR'], 'price_analysis': {'verdict': 'Markup', 'warnings': ["Broad price range for 'robot' suggests potential price gouging or different models."]}, 'community_sentiment': {'trust_level': 'Low', 'summary': 'No reviews available to determine community sentiment.', 'red_flags': ['Lack of reviews raises concerns about product quality and reliability.']}}, 'alternatives': [{'name': 'Roborock Qrevo S5V', 'compatibility_score': 29.0, 'summary': 'The Roborock Qrevo S5V is another robot vacuum cited as a top alternative, but like the Saros 10R, no reviews were available for analysis. This makes it difficult to determine its strengths and weaknesses.', 'pros': ['Cited as a top alternative in multiple sources'], 'cons': ['No reviews available for detailed analysis'], 'why_consider': 'Consider this if you want to stick with the Roborock brand and are willing to take a chance on a product without readily available reviews.'}, {'name': 'Ecovacs Deebot X11', 'compatibility_score': 24.2, 'summary': 'The Ecovacs Deebot X11 is also presented as a top alternative, but it suffers from the same lack of review data as the other options. This lack of information makes it challenging to recommend confidently.', 'pros': ['Cited as a top alternative in multiple sources'], 'cons': ['No reviews available for detailed analysis'], 'why_consider': 'Consider this if you are interested in the Ecovacs brand and are willing to try a product without extensive review information.'}], 'verdict': "Final recommendation: Due to the lack of review data for the Roborock Saros 10R and its alternatives, it's difficult to recommend any of them confidently. It would be wise to seek out models with more readily available and trustworthy reviews before making a purchase.", 'active_product': {'name': None, 'bounding_box': None, 'detected_objects': [{'name': 'robot', 'bounding_box': ['664', '264', '999', '796'], 'confidence': 0.94}, {'name': 'laser cutter', 'bounding_box': ['306', '232', '412', '314'], 'confidence': 0.81}, {'name': 'band saw', 'bounding_box': ['139', '73', '253', '376'], 'confidence': 0.93}, {'name': 'table', 'bounding_box': ['398', '228', '514', '510'], 'confidence': 0.81}, {'name': 'work bench', 'bounding_box': ['309', '535', '804', '879'], 'confidence': 0.94}, {'name': 'tool bench', 'bounding_box': ['152', '73', '311', '510'], 'confidence': 0.87}, {'name': 'fire extinguisher', 'bounding_box': ['528', '453', '569', '514'], 'confidence': 0.8}, {'name': 'air compressor', 'bounding_box': ['576', '483', '610', '546'], 'confidence': 0.76}]}}
+Response Node Completed
+--- 1. Executing Vision Node (The Eye) ---
+User Query: What is this item?
+Image Data Length: 55951
+Image successfully decoded from base64.
+Sending request to Gemini model...
+Gemini Response: {
+  "detected_objects": [
+    {
+      "name": "mechanical keyboard",
+      "bounding_box": [
+        242,
+        272,
+        797,
+        792
+      ],
+      "confidence": 0.96
+    }
+  ],
+  "product_name": "mechanical keyboard",
+  "context": "",
+  "ambiguity_resolved": true
+}
+--- 2b. Executing Market Scout Node (The Explorer) ---
+--- 2. Executing Discovery Node (The Runner) ---
+Researching Product: mechanical keyboard
+Starting Tavily search...
+Tavily found 15 reviews
+Starting SerpAPI search...
+SerpAPI found 40 offers
+Discovery Node Completed
+Market Scout Node Completed
+--- 3. Executing Critique Node (The Skeptic) ---
+Critique Output: {'fake_review_likelihood': 'Medium. While there are several mentions of specific brands and models (Redragon, Keychron, Corsair), many of the positive snippets are quite general ("great value and quality", "great overall experience", "more comfortable and precise"). These lack specifics and could be easily fabricated. The presence of affiliate links on rtings.com also suggests a potential bias in their reviews. The subreddit /r/MechanicalKeyboards attempts to avoid biased responses, which implies that biased reviews are a common problem.', 'price_integrity': "Markup. The competitor prices show a wide range, with similar keyboards appearing at vastly different prices across vendors. This suggests significant markup potential depending on the brand and retailer. There are also instances of retailers like 'Best Buy Canada Marketplace' which often have inflated prices compared to Best Buy Canada itself. Note that prices are missing shipping and taxes which can also impact the total cost.", 'hidden_flaws': ["Some reviews indicate that budget keyboards have issues, although not specified. One user said a Redragon keyboard wasn't worth it *for them* (unspecified reason).", 'The rtings.com review explicitly mentions affiliate commissions, suggesting a potential conflict of interest and biased reviews.', 'The best keyboards are now magnetic, not mechanical. So the mechanical keyboard may be an inferior choice.', "The prices gathered don't include shipping or tax costs."]}
+Critique Node Completed
+--- 4. Executing Analysis Node (The Brain) ---
+Scoring 4 candidates...
+Analysis Node Completed
+--- 5. Executing Response Node (The Speaker) ---
+Response Node Payload: {'main_product': {'name': 'Logitech Keyboards', 'compatibility_score': 46.1, 'summary': 'Logitech keyboards are presented as a reliable, non-mechanical alternative for gaming, potentially offering a balance between performance and affordability. However, the lack of specific review data makes it difficult to ascertain the actual user experience and overall quality.', 'pros': ['Reputable brand', 'Potentially more affordable than mechanical keyboards', 'May offer a quieter typing experience than mechanical keyboards'], 'cons': ['No specific review data available for analysis', 'May not offer the same level of customization as mechanical keyboards', 'Mechanical keyboards might provide a better gaming experience'], 'price_analysis': {'verdict': 'Markup', 'warnings': ['Prices may vary significantly across vendors, suggesting potential markup.', 'Prices do not include shipping or taxes, which can impact the total cost.']}, 'community_sentiment': {'trust_level': 'Low', 'summary': "There's no review data to assess user sentiment or trust. We don't know what real users think about this product.", 'red_flags': ['Lack of review data raises concerns about product quality and user satisfaction.']}}, 'alternatives': [{'name': 'Logitech Keyboards', 'compatibility_score': 46.1, 'summary': 'This is the same product as the main product, suggested as a top alternative to mechanical keyboards for gaming, offering reliable non-mechanical options. Consider this if you prefer a non-mechanical option from a reliable brand.', 'pros': ['Reputable brand', 'Potentially more affordable than mechanical keyboards'], 'cons': ['May not provide the same level of customization as mechanical keyboards', 'Mechanical keyboards might provide a better gaming experience'], 'why_consider': "If you're specifically looking for a non-mechanical keyboard from a trusted brand like Logitech, this is worth considering. It prioritizes reliability over the customizable feel of mechanical options."}, {'name': 'Keychron Keyboards', 'compatibility_score': 34.0, 'summary': "Keychron keyboards are recommended as a top alternative to mechanical keyboards for gaming. Consider this if you're open to mechanical keyboards and value customization.", 'pros': ['Highly customizable', 'Popular choice in the mechanical keyboard community'], 'cons': ['Potentially more expensive than non-mechanical options', 'May require some technical knowledge for customization'], 'why_consider': 'If you are interested in exploring mechanical keyboards, Keychron is a well-regarded brand known for its customization options. This is a good starting point for delving into the world of mechanical keyboards.'}, {'name': 'Corsair K100 Air', 'compatibility_score': 12.5, 'summary': 'The Corsair K100 Air is suggested as a good option for a full layout gaming keyboard. This might be a good choice if you prefer a full-sized keyboard with dedicated macro keys for gaming.', 'pros': ['Full layout with dedicated macro keys', 'Reputable brand in gaming peripherals'], 'cons': ['Potentially expensive', 'May be larger than some users prefer'], 'why_consider': 'If you need a full-sized keyboard with dedicated macro keys and trust the Corsair brand, the K100 Air could be a good option. It caters to users who prioritize functionality and brand recognition.'}], 'verdict': "Given the lack of review data for the main product and your preference for quality, it's difficult to recommend it without further research. Exploring the Keychron or Corsair alternatives would be wise, particularly if you're open to mechanical keyboards. Research specific models within those brands to find one that aligns with your budget and feature requirements.", 'active_product': {'name': None, 'bounding_box': None, 'detected_objects': [{'name': 'mechanical keyboard', 'bounding_box': [242, 272, 797, 792], 'confidence': 0.96}]}}
+Response Node Completed

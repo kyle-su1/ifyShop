@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const BoundingBoxOverlay = ({ boundingBox, label, onHover }) => {
+const BoundingBoxOverlay = ({ boundingBox, label, onHover, onClick, isSelected }) => {
     if (!boundingBox || boundingBox.length !== 4) return null;
 
     // Gemini returns [ymin, xmin, ymax, xmax] normalized to 0-1000
@@ -17,25 +17,27 @@ const BoundingBoxOverlay = ({ boundingBox, label, onHover }) => {
         left: `${left}%`,
         width: `${width}%`,
         height: `${height}%`,
-        border: '3px solid #00ff00',
-        backgroundColor: 'rgba(0, 255, 0, 0.1)',
+        border: isSelected ? '3px solid #00ffff' : '3px solid #00ff00',
+        backgroundColor: isSelected ? 'rgba(0, 255, 255, 0.2)' : 'rgba(0, 255, 0, 0.1)',
         cursor: 'pointer',
-        zIndex: 10,
+        zIndex: isSelected ? 20 : 10,
         transition: 'all 0.2s ease-in-out',
+        boxShadow: isSelected ? '0 0 15px rgba(0,255,255,0.5)' : 'none',
     };
 
     return (
         <div
             className="bounding-box"
             style={style}
-            onMouseEnter={() => onHover(true)}
-            onMouseLeave={() => onHover(false)}
+            onMouseEnter={() => onHover && onHover(true)}
+            onMouseLeave={() => onHover && onHover(false)}
+            onClick={onClick}
         >
             <div style={{
                 position: 'absolute',
                 top: '-30px',
                 left: '0',
-                backgroundColor: '#00ff00',
+                backgroundColor: isSelected ? '#00ffff' : '#00ff00',
                 color: 'black',
                 padding: '2px 8px',
                 fontSize: '14px',
