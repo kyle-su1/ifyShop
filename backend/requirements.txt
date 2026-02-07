@@ -7,3 +7,10 @@ pydantic-settings
 python-jose[cryptography]
 requests
 python-multipart
+
+langgraph
+langchain
+langchain-google-genai
+langchain-openai
+tavily-python
+google-search-results

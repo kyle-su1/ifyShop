@@ -41,3 +41,12 @@ Thumbs.db
 # IDE
 .idea/
 .vscode/
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Database
+*.db
+*.sqlite3

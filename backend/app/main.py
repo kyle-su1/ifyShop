@@ -24,3 +24,23 @@ app.include_router(api_router, prefix="/api/v1")
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+@app.post("/analyze")
+async def analyze_image(request: AnalyzeRequest):
+    """
+    Analyzes an uploaded image using the LangGraph agent.
+    """
+    initial_state = {
+        "image_data": request.image,
+        "user_preferences": request.user_preferences,
+        "search_results": [],
+        "reviews": [],
+        "parsed_item": None,
+        "verification_result": None,
+        "final_recommendation": None,
+        "reviews_summary": None
+    }
+    
+    result = agent_app.invoke(initial_state)
+    
+    return result
