@@ -97,6 +97,16 @@ workflow.add_conditional_edges(
     }
 )
 
+workflow.add_conditional_edges(
+    "vision_node",
+    route_vision,
+    {
+        "research_node": "research_node",
+        "market_scout_node": "market_scout_node",
+        END: END
+    }
+)
+
 # Research -> Market Scout
 workflow.add_edge("research_node", "market_scout_node")
 
