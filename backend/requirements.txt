@@ -19,3 +19,5 @@ langchain
 langchain-google-genai
 google-search-results
 requests
+
+gunicorn

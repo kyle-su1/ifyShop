@@ -1,0 +1,55 @@
+services:
+  # 1. Managed PostgreSQL (Database)
+  - type: psql
+    name: cxc2026-db
+    env: docker
+    plan: free
+    databaseName: cxc2026
+    user: cxc_user
+
+  # 2. Backend (Docker Service)
+  - type: web
+    name: cxc2026-backend
+    env: docker
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    plan: free
+    region: oregon
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cxc2026-db
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false  # You will enter this in Render Dashboard
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: SERPAPI_API_KEY
+        sync: false
+      - key: SNOWFLAKE_USER
+        sync: false
+      - key: SNOWFLAKE_PASSWORD
+        sync: false
+      - key: SNOWFLAKE_ACCOUNT
+        sync: false
+      - key: SNOWFLAKE_WAREHOUSE
+        sync: false
+      - key: SNOWFLAKE_DATABASE
+        sync: false
+      - key: SNOWFLAKE_SCHEMA
+        sync: false
+
+  # 3. Frontend (Static Site - Faster & Cheaper than Docker for UI)
+  - type: web
+    name: cxc2026-frontend
+    env: node
+    plan: free
+    region: oregon
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm run preview -- --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: cxc2026-backend
+          property: url
