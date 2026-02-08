@@ -98,10 +98,8 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
     
     if search_criteria:
         print(f"   [Scout] Applying search_criteria from Chat: {search_criteria}")
-    else:
-        print(f"   [Scout] No search_criteria provided. Using default balanced strategy.")
         
-        # Handle color exclusions
+        # Handle color preferences
         exclude_colors = search_criteria.get('exclude_colors', [])
         prefer_colors = search_criteria.get('prefer_colors', [])
         if prefer_colors:
@@ -117,6 +115,8 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
         style_keywords = search_criteria.get('style_keywords', [])
         if style_keywords:
             style_filter = " " + " ".join(style_keywords)
+    else:
+        print(f"   [Scout] No search_criteria provided. Using default balanced strategy.")
 
     # 2. Construct Queries with filters applied
     queries = []
@@ -192,9 +192,15 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
     
     llm = ChatGoogleGenerativeAI(model=settings.MODEL_REASONING, google_api_key=settings.GOOGLE_API_KEY, temperature=0.1)
     
+    # Build brand preference instruction for LLM
+    brand_instruction = ""
+    prefer_brands = search_criteria.get('prefer_brands', []) if search_criteria else []
+    if prefer_brands:
+        brand_instruction = f"\n    IMPORTANT: User STRONGLY prefers these brands: {', '.join(prefer_brands)}. ONLY include products from these brands. Do NOT include products from other brands."
+    
     prompt = f"""You are a Market Scout. 
     Product: {product_name}
-    Goal: Find 10 best {search_modifiers[0]} products.
+    Goal: Find 10 best {search_modifiers[0]} products.{brand_instruction}
     
     Search Context:
     {context_text}
@@ -220,6 +226,18 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
             candidates = []
         llm_extract_time = time.time() - llm_extract_start
         print(f"   ⏱️  [Scout] LLM extraction took {llm_extract_time:.2f}s")
+        
+        # Post-LLM filtering: Remove candidates that don't match preferred brands
+        if prefer_brands and candidates:
+            filtered_candidates = []
+            for cand in candidates:
+                cand_name = cand.get('name', '').lower()
+                if any(brand.lower() in cand_name for brand in prefer_brands):
+                    filtered_candidates.append(cand)
+                else:
+                    print(f"       -> Filtered out {cand.get('name')} (not preferred brand)")
+            candidates = filtered_candidates
+            print(f"   [Scout] After brand filtering: {len(candidates)} candidates remain")
 
         # --- Snowflake Vector Search Integration ---
         # Uses search_criteria to create a more targeted embedding query
@@ -260,6 +278,7 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
                     res_name = res.get('name', '').lower()
                     exclude_colors = search_criteria.get('exclude_colors', [])
                     exclude_brands = search_criteria.get('exclude_brands', [])
+                    prefer_brands = search_criteria.get('prefer_brands', [])
                     
                     # Skip if product matches exclusions
                     if any(color.lower() in res_name for color in exclude_colors):
@@ -268,6 +287,12 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
                     if any(brand.lower() in res_name for brand in exclude_brands):
                         print(f"       -> Skipping {res.get('name')} (excluded brand)")
                         continue
+                    
+                    # If user has brand preferences, ONLY include products matching those brands
+                    if prefer_brands:
+                        if not any(brand.lower() in res_name for brand in prefer_brands):
+                            print(f"       -> Skipping {res.get('name')} (not preferred brand)")
+                            continue
                     
                     # Convert to candidate format
                     cand = {

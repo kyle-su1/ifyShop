@@ -109,14 +109,16 @@ class SnowflakeCacheService:
         try:
             # CRITICAL: Properly escape for SQL and ensure no newlines break PARSE_JSON
             # 1. Serialize to JSON with ensure_ascii to handle unicode
-            # 2. Replace newlines with escaped versions
-            # 3. Escape single quotes for SQL string
+            # 2. Escape backslashes FIRST (must come before other escapes)
+            # 3. Replace newlines with escaped versions
+            # 4. Escape single quotes for SQL string
             params_json = json.dumps(params, ensure_ascii=True, separators=(',', ':'))
             result_json = json.dumps(result, ensure_ascii=True, separators=(',', ':'))
             
-            # Replace actual newlines with escaped newlines (for multi-line strings in values)
-            params_str = params_json.replace('\n', '\\n').replace('\r', '\\r').replace("'", "''")
-            result_str = result_json.replace('\n', '\\n').replace('\r', '\\r').replace("'", "''")
+            # Escape backslashes first to avoid double-escaping issues with \n, \r, etc.
+            # Then escape newlines and single quotes for SQL
+            params_str = params_json.replace('\\', '\\\\').replace('\n', '\\n').replace('\r', '\\r').replace("'", "''")
+            result_str = result_json.replace('\\', '\\\\').replace('\n', '\\n').replace('\r', '\\r').replace("'", "''")
             
             # Safe MERGE query
             query = f"""
