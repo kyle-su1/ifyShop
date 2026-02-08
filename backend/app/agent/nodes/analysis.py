@@ -308,7 +308,13 @@ def node_analysis_synthesis(state: AgentState) -> Dict[str, Any]:
     total_time = time.time() - start_time
     print(f"--- Analysis Node: Total time {total_time:.2f}s ---")
     log_debug("Analysis Node Completed")
+    
+    # Get existing timings and add this node's time
+    existing_timings = state.get('node_timings', {}) or {}
+    existing_timings['analysis'] = total_time
+    
     return {
         "analysis_object": analysis_object, 
-        "alternatives_analysis": alternatives_scored
+        "alternatives_analysis": alternatives_scored,
+        "node_timings": existing_timings
     }

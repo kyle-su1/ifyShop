@@ -359,10 +359,16 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
     total_time = time.time() - start_time
     print(f"--- Market Scout Node: Total time {total_time:.2f}s ---")
     log_debug("Market Scout Node Completed")
+    
+    # Get existing timings and add this node's time
+    existing_timings = state.get('node_timings', {}) or {}
+    existing_timings['market_scout'] = total_time
+    
     return {
         "market_scout_data": {
             "strategy": search_modifiers[0],
             "raw_search_results": unique_results,
             "candidates": candidates[:2]  # Only return enriched candidates
-        }
+        },
+        "node_timings": existing_timings
     }

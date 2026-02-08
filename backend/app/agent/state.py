@@ -69,3 +69,6 @@ class AgentState(TypedDict):
 
     # Node 5: Response (The Speaker) - Final Output
     final_recommendation: Optional[dict]
+    
+    # Performance Tracking
+    node_timings: Optional[dict] # {node_name: time_seconds} for total runtime calculation

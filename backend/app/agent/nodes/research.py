@@ -119,6 +119,17 @@ def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
         pass
     # ---------------------
     
+    # Calculate total time for this node
+    import time as time_module
+    node_end = time_module.time()
+    # Note: We need to track start time at the beginning of the function
+    # Since parallel tasks are internal, we'll approximate from the task times
+    node_time = max(review_time if 'review_time' in dir() else 0, price_time if 'price_time' in dir() else 0)
+    
+    # Get existing timings and add this node's time  
+    existing_timings = state.get('node_timings', {}) or {}
+    existing_timings['research'] = node_time
+    
     # 3. Aggregate Data
     research_data = {
         "search_results": [r['snippet'] for r in reviews_data if 'snippet' in r], # Simplified list for simple prompts
@@ -128,4 +139,4 @@ def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
     }
     
     log_debug("Discovery Node Completed")
-    return {"research_data": research_data}
+    return {"research_data": research_data, "node_timings": existing_timings}
