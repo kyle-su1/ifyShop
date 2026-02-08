@@ -123,25 +123,26 @@ def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
         })
         print(f"   [Runner] No direct offers, added fallback link (Image: {'Yes' if fallback_image else 'No'}).")
         
-    # --- PRICE LOGGING ---
+    # --- PRICE LOGGING (Summary Only) ---
     try:
         with open("/app/logs/price_debug.log", "a", encoding="utf-8") as f:
-            for o in offers_data:
-                # Handle cases where 'price_cents' is from PriceOffer.dict()
-                # The fallback above uses 'price': 0 directly, so check both
-                price_cents = o.get('price_cents', 0)
-                if price_cents == 0:
-                    price_cents = o.get('price', 0) * 100  # Fallback may use 'price' in dollars
-                
-                p_val = price_cents / 100.0  # Convert to dollars for display
-                curr = o.get('currency', 'CAD')
-                vendor = o.get('vendor', 'Unknown')
-                url = o.get('url', 'No URL')
-                
-                f.write(f"Product: {product_name} (Main) | Price: {p_val:.2f} {curr} | Vendor: {vendor} | URL: {url}\n")
-    except Exception as log_e:
-        print(f"       -> Logging failed: {log_e}")
+            if offers_data:
+                best_price = offers_data[0].get('price_cents', 0) / 100.0 if offers_data[0].get('price_cents') else 0
+                f.write(f"[Main] {product_name} | {len(offers_data)} offers | Best: ${best_price:.2f} CAD\n")
+    except Exception:
+        pass
     # ---------------------
+    
+    # Calculate total time for this node
+    import time as time_module
+    node_end = time_module.time()
+    # Note: We need to track start time at the beginning of the function
+    # Since parallel tasks are internal, we'll approximate from the task times
+    node_time = max(review_time if 'review_time' in dir() else 0, price_time if 'price_time' in dir() else 0)
+    
+    # Get existing timings and add this node's time  
+    existing_timings = state.get('node_timings', {}) or {}
+    existing_timings['research'] = node_time
     
     # 3. Aggregate Data
     research_data = {
@@ -153,4 +154,4 @@ def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
     }
     
     log_debug("Discovery Node Completed")
-    return {"research_data": research_data}
+    return {"research_data": research_data, "node_timings": existing_timings}

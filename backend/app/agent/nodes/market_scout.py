@@ -260,13 +260,13 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
                             for p in price_offers
                         ]
                         
-                        # --- PRICE LOGGING ---
+                        # --- PRICE LOGGING (Summary Only) ---
                         try:
                             with open("/app/logs/price_debug.log", "a", encoding="utf-8") as f:
-                                for p in price_offers:
-                                    f.write(f"Product: {name} | Price: {p.price_cents/100:.2f} {p.currency} | Vendor: {p.vendor} | URL: {p.url}\n")
-                        except Exception as log_e:
-                            print(f"       -> Logging failed: {log_e}")
+                                best_p = price_offers[0].price_cents / 100 if price_offers else 0
+                                f.write(f"[Alt] {name} | {len(price_offers)} offers | Best: ${best_p:.2f} CAD\n")
+                        except Exception:
+                            pass
                         # ---------------------
                         
                         if price_offers:
@@ -359,10 +359,16 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
     total_time = time.time() - start_time
     print(f"--- Market Scout Node: Total time {total_time:.2f}s ---")
     log_debug("Market Scout Node Completed")
+    
+    # Get existing timings and add this node's time
+    existing_timings = state.get('node_timings', {}) or {}
+    existing_timings['market_scout'] = total_time
+    
     return {
         "market_scout_data": {
             "strategy": search_modifiers[0],
             "raw_search_results": unique_results,
             "candidates": candidates[:2]  # Only return enriched candidates
-        }
+        },
+        "node_timings": existing_timings
     }
