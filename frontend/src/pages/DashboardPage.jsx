@@ -4,11 +4,11 @@ import ImageUploader from '../components/ImageUploader'
 import LogoutButton from '../components/LogoutButton'
 import { useAuth0 } from '@auth0/auth0-react'
 import axios from 'axios';
-import { analyzeImage, identifyObject, chatAnalyze } from '../lib/api'
+import { chatAnalyze } from '../lib/api'
 import ChatInterface from '../components/ChatInterface';
-import BoundingBoxOverlay from '../components/BoundingBoxOverlay';
 import ScanningOverlay from '../components/ScanningOverlay';
 import AgentStatusDisplay from '../components/AgentStatusDisplay';
+import BoundingBoxOverlay from '../components/BoundingBoxOverlay';
 
 const DashboardPage = () => {
     const { user, getAccessTokenSilently, isLoading, logout, isAuthenticated } = useAuth0()
@@ -16,17 +16,11 @@ const DashboardPage = () => {
     const [imageBase64, setImageBase64] = useState(null)
     const [analysisResult, setAnalysisResult] = useState(null)
     const [isAnalyzing, setIsAnalyzing] = useState(false)
-    const [activeProductHover, setActiveProductHover] = useState(false);
     const [analyzedImage, setAnalyzedImage] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [showAlternatives, setShowAlternatives] = useState(false);
-    const [selectedObject, setSelectedObject] = useState(null);
-    const [isIdentifying, setIsIdentifying] = useState(false);
-    const [identifiedCache, setIdentifiedCache] = useState({}); // Cache Lens results by object index
-    const [agentStep, setAgentStep] = useState(0);
     const [backendReady, setBackendReady] = useState(false);
     const [isChatAnalyzing, setIsChatAnalyzing] = useState(false);
     const [chatMessages, setChatMessages] = useState([]);
+    const [agentStep, setAgentStep] = useState(0);
 
     // Poll backend health
     useEffect(() => {
@@ -45,153 +39,12 @@ const DashboardPage = () => {
         return () => clearInterval(interval);
     }, []);
 
-    // Initialize selectedObject when analysis results load
-    useEffect(() => {
-        if (analysisResult?.active_product?.detected_objects?.length > 0) {
-            setSelectedObject(analysisResult.active_product.detected_objects[0]);
-        } else if (analysisResult?.active_product) {
-            // Fallback to active_product itself
-            setSelectedObject(analysisResult.active_product);
-        }
-    }, [analysisResult]);
-
-    // Handle bounding box click - call Lens API AND then Deep Analysis
-    const handleObjectClick = async (obj, idx) => {
-        console.log("[handleObjectClick] Clicked obj:", obj.name, "idx:", idx);
-        setSelectedObject(obj);
-
-        // Check if already identified (cached) - if so, we might still want to deep analyze if missing details?
-        // For now, assume if cached, it's done.
-        if (identifiedCache[idx]) {
-            console.log("[handleObjectClick] Using cached result");
-            const cached = identifiedCache[idx];
-            setSelectedObject({ ...obj, ...cached, lens_status: 'identified' });
-            return;
-        }
-
-        // Skip if already identifying or no image
-        if (isIdentifying || !imageBase64) return;
-
-        setIsIdentifying(true);
-        console.log("[handleObjectClick] Calling identifyObject API...");
-
-        try {
-            const token = await getAccessTokenSilently();
-
-            // 1. Identify specific product (Lens) (~5s)
-            const lensResult = await identifyObject(imageBase64, obj.bounding_box, token);
-            console.log("[handleObjectClick] Lens result:", lensResult);
-
-            // Cache the lens result
-            setIdentifiedCache(prev => ({ ...prev, [idx]: lensResult }));
-
-            // Update UI immediately with product name
-            const updatedObj = {
-                ...obj,
-                name: lensResult.product_name || obj.name,
-                confidence: lensResult.confidence || obj.confidence,
-                lens_status: 'identified',
-                lens_link: lensResult.link
-            };
-
-            setSelectedObject(updatedObj);
-
-            // Update the object in the analysis result (preserve boxes)
-            setAnalysisResult(prev => {
-                if (!prev?.active_product?.detected_objects) return prev;
-                const updatedObjects = [...prev.active_product.detected_objects];
-                updatedObjects[idx] = updatedObj;
-                return {
-                    ...prev,
-                    active_product: { ...prev.active_product, detected_objects: updatedObjects }
-                };
-            });
-
-            // 2. Trigger Deep Analysis (Stage 2) (~3s)
-            // We want to analyze THIS specific product now.
-            console.log("[handleObjectClick] Triggering Deep Analysis for:", lensResult.product_name);
-            setAgentStep(0); // Restart agent visualization
-            // Start agent progress simulation again
-            const stepInterval = setInterval(() => {
-                setAgentStep(prev => (prev < 4 ? prev + 1 : prev));
-            }, 800);
-
-            const deepAnalysis = await analyzeImage(imageFile, token, {
-                skip_vision: true,
-                product_name: lensResult.product_name
-            });
-
-            clearInterval(stepInterval);
-            setAgentStep(5);
-
-            // Merge Deep Analysis result with existing boxes
-            setAnalysisResult(prev => ({
-                ...deepAnalysis, // outcome, summary, pricing, alternatives
-                active_product: {
-                    ...deepAnalysis.active_product, // might have context/canon_name
-                    // CRITICAL: Restore the detected objects from Stage 1, updated with identification
-                    detected_objects: prev.active_product.detected_objects
-                },
-                // Keep the identified product name top-level
-                identified_product: lensResult.product_name
-            }));
-
-        } catch (error) {
-            console.error("Failed to identify/analyze object:", error);
-            alert("Failed to analyze object details.");
-        } finally {
-            setIsIdentifying(false);
-        }
-    };
-
-
     const handleImageSelected = (file, base64) => {
         setImageFile(file)
         setImageBase64(base64)
         setAnalysisResult(null)
         setAnalyzedImage(base64); // Set the image for display
     }
-
-    const handleAnalyze = async () => {
-        if (!imageFile) return;
-        setIsAnalyzing(true);
-        setAgentStep(0);
-        setAnalysisResult(null);
-
-        // Stage 1: Fast Detection Only
-        // Simulation for detection (faster)
-        const stepInterval = setInterval(() => {
-            setAgentStep(prev => (prev < 1 ? prev + 1 : prev)); // Only go to step 1 (Vision)
-        }, 500);
-
-        try {
-            const token = await getAccessTokenSilently();
-            // Call API with detect_only=true
-            const result = await analyzeImage(imageFile, token, { detect_only: true });
-
-            clearInterval(stepInterval);
-            setAgentStep(1); // Vision done
-
-            // Result should be { product_query: { detected_objects: [...] } }
-            // Map to expected UI structure
-            setTimeout(() => {
-                setAnalysisResult({
-                    active_product: result, // result IS the product_query object from backend
-                    outcome: 'pending_selection', // New state?
-                    summary: 'Objects detected. Click a bounding box to analyze details.',
-                    detected_objects: result.detected_objects // Redundant but safe
-                });
-                setIsAnalyzing(false);
-            }, 300);
-
-        } catch (error) {
-            clearInterval(stepInterval);
-            console.error("Analysis failed:", error);
-            const errorMessage = error.response?.data?.detail || error.message || "Unknown error";
-            alert(`Failed to analyze image: ${errorMessage} `);
-            setIsAnalyzing(false);
-        }
-    };
 
     // Handle chat-based targeted analysis
     const handleChatAnalyze = async (userQuery) => {
@@ -318,37 +171,14 @@ const DashboardPage = () => {
                                         {/* SCANNING OVERLAY */}
                                         <ScanningOverlay isScanning={isAnalyzing} />
 
-                                        {/* MULTI-OBJECT BOUNDING BOX OVERLAY */}
-                                        {/* Defensive check: Ensure analysisResult and active_product exist */}
-                                        {analysisResult && analysisResult.active_product && (
-                                            <>
-                                                {(analysisResult.active_product.detected_objects && analysisResult.active_product.detected_objects.length > 0) ? (
-                                                    analysisResult.active_product.detected_objects.map((obj, idx) => (
-                                                        <BoundingBoxOverlay
-                                                            key={idx}
-                                                            boundingBox={obj?.bounding_box}
-                                                            label={`${obj?.name || 'Object'} ${obj?.lens_status === 'identified' ? '✓' : ''}(${Math.round((obj?.confidence || 0) * 100)}%)`}
-                                                            isSelected={selectedObject?.name === obj?.name}
-                                                            onClick={() => handleObjectClick(obj, idx)}
-                                                            onHover={(isHovering) => {
-                                                                if (setActiveProductHover) setActiveProductHover(isHovering);
-                                                            }}
-                                                        />
-                                                    ))
-                                                ) : (
-                                                    analysisResult.active_product.bounding_box && (
-                                                        <BoundingBoxOverlay
-                                                            boundingBox={analysisResult.active_product.bounding_box}
-                                                            label={analysisResult.active_product.name || 'Product'}
-                                                            onHover={(isHovering) => {
-                                                                if (setActiveProductHover) setActiveProductHover(isHovering);
-                                                            }}
-                                                        />
-                                                    )
-                                                )}
-                                            </>
-                                        )}
-
+                                        {/* CHATBOT BOUNDING BOX - highlights what it's researching */}
+                                        {analysisResult?.active_product?.detected_objects?.map((obj, idx) => (
+                                            <BoundingBoxOverlay
+                                                key={idx}
+                                                boundingBox={obj?.bounding_box}
+                                                label={obj?.name || 'Target'}
+                                            />
+                                        ))}
                                         {/* Change Image Button */}
                                         {!isAnalyzing && (
                                             <button
@@ -362,30 +192,7 @@ const DashboardPage = () => {
                                     </div>
                                 )}
 
-                                {imageFile && (
-                                    <button
-                                        onClick={handleAnalyze}
-                                        disabled={isAnalyzing || !backendReady}
-                                        className="mt-6 w-full py-3 px-4 btn-primary rounded-lg font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group background-animate"
-                                    >
-                                        {isAnalyzing ? (
-                                            <>
-                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                                Processing...
-                                            </>
-                                        ) : !backendReady ? (
-                                            <>
-                                                <div className="w-4 h-4 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
-                                                Connecting to Brain...
-                                            </>
-                                        ) : (
-                                            <>
-                                                Start Agent Workflow
-                                                <svg className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                                            </>
-                                        )}
-                                    </button>
-                                )}
+
 
                                 {/* Chat Interface - appears after image is uploaded */}
                                 {imageBase64 && (
@@ -422,7 +229,7 @@ const DashboardPage = () => {
                                                 <div className={`px-3 py-1 rounded-full text-xs font-semibold tracking-wide border ${analysisResult.outcome === 'highly_recommended' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}>
                                                     {analysisResult.outcome === 'highly_recommended' ? 'HIGHLY RECOMMENDED' : 'CONSIDER ALTERNATIVES'}
                                                 </div>
-                                                <span className="text-xs text-gray-400">Confidence: {selectedObject && selectedObject.confidence ? Math.round(selectedObject.confidence * 100) : 88}%</span>
+                                                <span className="text-xs text-gray-400">Confidence: {analysisResult.confidence ? Math.round(analysisResult.confidence * 100) : 88}%</span>
                                             </div>
 
                                             <div className="flex flex-col gap-6">
@@ -564,7 +371,7 @@ const DashboardPage = () => {
                                         </details>
                                     </div>
                                 </div>
-                            ) : isAnalyzing ? (
+                            ) : isChatAnalyzing ? (
                                 <AgentStatusDisplay activeStep={agentStep} />
                             ) : (
                                 <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4 py-12">
