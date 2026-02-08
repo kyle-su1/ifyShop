@@ -99,6 +99,7 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
     # Use parallel execution for search queries to speed up
     from concurrent.futures import ThreadPoolExecutor, as_completed
     
+    search_start = time.time()
     with ThreadPoolExecutor(max_workers=2) as executor:
         future_to_query = {executor.submit(search_market_context, q): q for q in queries[:2]} # Limit to 2 queries
         for future in as_completed(future_to_query):
@@ -108,6 +109,8 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
                 scout_results.extend(results)
             except Exception:
                 pass
+    search_time = time.time() - search_start
+    print(f"   ⏱️  [Scout] Tavily search took {search_time:.2f}s")
                 
     # Deduplicate results based on URL
     seen_urls = set()
@@ -139,6 +142,7 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
     Example: [{{"name": "Competitor X", "reason": "Better battery life"}}]
     """
     
+    llm_extract_start = time.time()
     candidates = []
     try:
         response = llm.invoke(prompt)
@@ -151,6 +155,8 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
         candidates = json.loads(content)
         if not isinstance(candidates, list):
             candidates = []
+        llm_extract_time = time.time() - llm_extract_start
+        print(f"   ⏱️  [Scout] LLM extraction took {llm_extract_time:.2f}s")
 
         # --- Snowflake Vector Search Integration ---
         # Uses search_criteria to create a more targeted embedding query
@@ -276,6 +282,7 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
 
                 # Run enrichment in parallel, limit to 3 to avoid API rate limits
                 # Latency Optimization: Limit to top 3 candidates total to prevent massive fan-out
+                enrichment_start = time.time()
                 candidates_to_process = candidates[:3]
                 with ThreadPoolExecutor(max_workers=3) as executor:
                     futures = [executor.submit(enrich_candidate, cand) for cand in candidates_to_process]
@@ -284,6 +291,8 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
                             future.result(timeout=15)
                         except Exception as exc:
                             print(f"   [Scout] Candidate enrichment failed: {exc}")
+                enrichment_time = time.time() - enrichment_start
+                print(f"   ⏱️  [Scout] Enrichment (prices/reviews) took {enrichment_time:.2f}s")
                     
             except Exception as e:
                 print(f"       -> Enrichment setup failed: {e}")

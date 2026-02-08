@@ -1,4 +1,5 @@
 from typing import Dict, Any, List
+import time
 from app.agent.state import AgentState
 from app.schemas.types import ProductQuery
 from app.sources.tavily_client import find_review_snippets
@@ -54,7 +55,10 @@ def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
     def fetch_reviews():
         try:
             log_debug("Starting Tavily search...")
+            review_start = time.time()
             reviews = find_review_snippets(product, trace_log)
+            review_time = time.time() - review_start
+            print(f"   ⏱️  [Runner] Tavily reviews took {review_time:.2f}s")
             log_debug(f"Tavily found {len(reviews)} reviews")
             return [r.dict() for r in reviews]
         except Exception as e:
@@ -65,7 +69,10 @@ def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
     def fetch_prices():
         try:
             log_debug("Starting SerpAPI search...")
+            price_start = time.time()
             offers = get_shopping_offers(product, trace_log)
+            price_time = time.time() - price_start
+            print(f"   ⏱️  [Runner] SerpAPI prices took {price_time:.2f}s")
             log_debug(f"SerpAPI found {len(offers)} offers")
             return [o.dict() for o in offers]
         except Exception as e:

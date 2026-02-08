@@ -49,17 +49,24 @@ def node_skeptic_critique(state: AgentState) -> Dict[str, Any]:
     llm = ChatGoogleGenerativeAI(model=settings.MODEL_REASONING, google_api_key=settings.GOOGLE_API_KEY)
     
     prompt = f"""
-    You are a cynical, skeptical shopping assistant. Your job is to find flaws, fake reviews, and pricing tricks.
+    You are a fair and balanced shopping analyst. Your job is to provide an honest assessment that helps users make informed decisions.
     
-    Analyze this research data:
+    Analyze this research data and look for BOTH positives and legitimate concerns:
     {json.dumps(research_results, indent=2)}
+    
+    GUIDELINES:
+    - Most products are legitimate. Start with baseline trust score of 7.
+    - Only flag genuine red flags with clear evidence.
+    - A mix of positive and negative reviews is NORMAL and healthy.
+    - Detailed, specific reviews (positive OR negative) are more trustworthy.
+    - Price variations between retailers are normal market behavior.
     
     Return a JSON object:
     {{
-        "trust_score": 5.0 (float 0-10, where 10 is perfectly trustworthy),
-        "fake_review_likelihood": "High/Medium/Low + explanation",
-        "price_integrity": "Is it a real deal or markup?",
-        "hidden_flaws": ["List of specific complaints found"]
+        "trust_score": 7.0 (float 0-10, start at 7, adjust based on evidence. 8-10=excellent, 6-7=normal, below 5=real concerns),
+        "fake_review_likelihood": "Low/Medium/High + brief explanation (only High if clear evidence)",
+        "price_integrity": "Fair assessment of pricing - is it competitive for the category?",
+        "hidden_flaws": ["Only list REAL concerns backed by review data, not speculation"]
     }}
     """
     

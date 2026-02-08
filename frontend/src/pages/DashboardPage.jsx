@@ -183,23 +183,27 @@ const DashboardPage = () => {
                                         />
                                     ) : (
                                         <div className="relative rounded-xl overflow-hidden border border-white/10 group flex-1 bg-black/40 flex items-center justify-center">
-                                            <img
-                                                src={imageBase64}
-                                                alt="Analyzed Item"
-                                                className="w-full h-auto max-h-[400px] object-contain"
-                                            />
+                                            {/* Image wrapper for proper bounding box positioning */}
+                                            <div className="relative inline-block max-w-full max-h-[400px]">
+                                                <img
+                                                    src={imageBase64}
+                                                    alt="Analyzed Item"
+                                                    className="block max-w-full max-h-[400px] h-auto w-auto"
+                                                />
+
+                                                {/* CHATBOT BOUNDING BOX - positioned relative to the image */}
+                                                {analysisResult?.active_product?.detected_objects?.map((obj, idx) => (
+                                                    <BoundingBoxOverlay
+                                                        key={idx}
+                                                        boundingBox={obj?.bounding_box}
+                                                        label={obj?.name || 'Target'}
+                                                    />
+                                                ))}
+                                            </div>
 
                                             {/* SCANNING OVERLAY */}
                                             <ScanningOverlay isScanning={isAnalyzing} />
 
-                                            {/* CHATBOT BOUNDING BOX - highlights what it's researching */}
-                                            {analysisResult?.active_product?.detected_objects?.map((obj, idx) => (
-                                                <BoundingBoxOverlay
-                                                    key={idx}
-                                                    boundingBox={obj?.bounding_box}
-                                                    label={obj?.name || 'Target'}
-                                                />
-                                            ))}
                                             {/* Change Image Button */}
                                             {!isAnalyzing && (
                                                 <button
@@ -257,10 +261,10 @@ const DashboardPage = () => {
                                         <div className="p-6">
                                             <div className="flex items-center justify-between mb-4">
                                                 <div className={`px-3 py-1 rounded-full text-xs font-semibold tracking-wide border ${analysisResult.outcome === 'highly_recommended'
-                                                        ? 'bg-green-500/10 border-green-500/20 text-green-400'
-                                                        : analysisResult.outcome === 'recommended'
-                                                            ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
-                                                            : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                                                    ? 'bg-green-500/10 border-green-500/20 text-green-400'
+                                                    : analysisResult.outcome === 'recommended'
+                                                        ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                                                        : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
                                                     }`}>
                                                     {analysisResult.outcome === 'highly_recommended'
                                                         ? 'HIGHLY RECOMMENDED'
