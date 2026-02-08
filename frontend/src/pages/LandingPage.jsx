@@ -41,7 +41,7 @@ const TypewriterText = ({ texts, className }) => {
 };
 
 const LandingPage = () => {
-    const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
+    const { isAuthenticated, isLoading, loginWithRedirect, logout } = useAuth0();
     const [windowsVisible, setWindowsVisible] = useState(false);
 
     useEffect(() => {
@@ -50,12 +50,7 @@ const LandingPage = () => {
         return () => clearTimeout(timer);
     }, []);
 
-    const navLinks = [
-        { name: 'Demo', path: '/demo' },
-        { name: 'Solutions', path: '/solutions' },
-        { name: 'Product', path: '/product' },
-        { name: 'Company', path: '/company' }
-    ];
+    const navLinks = []; // Subpages removed
 
     return (
         <div className="min-h-screen bg-[#08090A] text-white font-sans selection:bg-emerald-500/30 relative overflow-hidden">
@@ -86,53 +81,27 @@ const LandingPage = () => {
                             <span className="font-semibold text-lg tracking-tight text-white">ifyShop</span>
                         </Link>
 
-                        {/* Center Links */}
+                        {/* Center Links - REMOVED */}
                         <div className="hidden md:flex items-center gap-8">
-                            {navLinks.map((link) => (
-                                link.disabled ? (
-                                    <span
-                                        key={link.name}
-                                        className="text-sm text-gray-600 cursor-not-allowed"
-                                    >
-                                        {link.name}
-                                    </span>
-                                ) : (
-                                    <Link
-                                        key={link.name}
-                                        to={link.path}
-                                        className="text-sm text-gray-400 hover:text-white transition-colors duration-200"
-                                    >
-                                        {link.name}
-                                    </Link>
-                                )
-                            ))}
                         </div>
 
                         {/* Right Actions */}
                         <div className="flex items-center gap-4">
                             {isAuthenticated ? (
-                                <Link
-                                    to="/app"
-                                    className="btn-primary text-sm group flex items-center gap-2"
+                                <button
+                                    onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
+                                    className="px-6 py-2.5 rounded-lg border-none cursor-pointer transition-all duration-200 font-medium text-white bg-gradient-to-br from-red-500 to-red-700 shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:shadow-[0_0_30px_rgba(239,68,68,0.5)] hover:-translate-y-[1px] text-sm"
                                 >
-                                    <span>Dashboard</span>
-                                    <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                                    </svg>
-                                </Link>
+                                    Sign Out
+                                </button>
                             ) : (
                                 <>
-                                    <button
-                                        onClick={() => loginWithRedirect()}
-                                        className="text-sm text-gray-300 hover:text-white transition-colors"
-                                    >
-                                        Sign In
-                                    </button>
+                                    {/* Sign In Button */}
                                     <button
                                         onClick={() => loginWithRedirect()}
                                         className="btn-primary text-sm"
                                     >
-                                        Try Demo
+                                        Sign In
                                     </button>
                                 </>
                             )}
@@ -150,7 +119,7 @@ const LandingPage = () => {
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                         </span>
-                        Now in Beta • Free to Try
+                        Now in Beta • CxC2026
                     </div>
 
                     {/* Headline */}
@@ -188,18 +157,10 @@ const LandingPage = () => {
                                 onClick={() => loginWithRedirect()}
                                 className="btn-primary px-8 py-3 text-base"
                             >
-                                Try Demo — Free
+                                Go to Dashboard
                             </button>
                         )}
-                        <Link
-                            to="/product"
-                            className="text-gray-400 hover:text-white transition-colors flex items-center gap-1"
-                        >
-                            Learn how it works
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                            </svg>
-                        </Link>
+                        {/* Secondary Link Removed */}
                     </div>
                 </section>
 
