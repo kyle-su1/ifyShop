@@ -126,14 +126,17 @@ Output the result in the specified JSON format.
         if eco_context:
             eco_section = f"SUSTAINABILITY DATA FROM RESEARCH:\n{eco_context}"
         else:
-            eco_section = """No specific sustainability research found. Use YOUR KNOWLEDGE to evaluate eco-friendliness based on:
-- Product materials (wood=renewable, recycled materials=good, single-use plastic=bad)
-- Brand reputation (IKEA, Patagonia, Apple = known sustainability programs)
-- Product category (durable furniture > fast fashion, repairable electronics > disposable)
-- Expected lifespan (longer-lasting products = more eco-friendly)
+            eco_section = """No sustainability research data was found for this product.
 
-For this product, consider what you know about the brand and materials mentioned in the product name or reviews.
-DO NOT default to 0.5 - make an educated assessment based on product type."""
+IMPORTANT: Do NOT invent or assume certifications (B Corp, Net Zero, etc.) that are not explicitly mentioned in the research data above.
+
+Without research data, score ONLY based on:
+- Product CATEGORY (electronics=0.45, refurbished=0.70, furniture=0.50, clothing=0.40)
+- Whether "refurbished" or "renewed" appears in the name (+0.20 boost for extending product life)
+- General product type durability (durable products > disposable)
+
+In eco_notes, write: "No sustainability data found. Score based on product category."
+Do NOT claim any company has specific certifications unless that info was provided in research data."""
         
         system_prompt = system_prompt.replace("{eco_section}", eco_section)
 

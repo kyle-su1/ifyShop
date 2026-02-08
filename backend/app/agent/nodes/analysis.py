@@ -10,6 +10,45 @@ import logging
 # Configure logging
 logger = logging.getLogger(__name__)
 
+def adjust_eco_score(raw_score: float, product_name: str) -> float:
+    """
+    Post-process eco score to ensure a wider range for demo purposes.
+    Uses keyword detection to apply deterministic adjustments.
+    """
+    name_lower = product_name.lower()
+    adjustment = 0.0
+    
+    # POSITIVE ADJUSTMENTS (eco-friendly indicators)
+    if 'refurbished' in name_lower or 'renewed' in name_lower or 'certified pre-owned' in name_lower:
+        adjustment += 0.25  # Major boost for extending product life
+    if 'recycled' in name_lower or 'sustainable' in name_lower or 'eco' in name_lower:
+        adjustment += 0.20
+    if 'organic' in name_lower or 'bamboo' in name_lower or 'biodegradable' in name_lower:
+        adjustment += 0.15
+    if 'patagonia' in name_lower or 'allbirds' in name_lower or 'b corp' in name_lower:
+        adjustment += 0.20  # Known sustainability leaders
+    
+    # NEGATIVE ADJUSTMENTS (poor eco indicators)
+    if 'disposable' in name_lower or 'single-use' in name_lower or 'throwaway' in name_lower:
+        adjustment -= 0.30
+    if 'fast fashion' in name_lower or 'shein' in name_lower or 'temu' in name_lower:
+        adjustment -= 0.25
+    if 'plastic' in name_lower and 'recycled' not in name_lower:
+        adjustment -= 0.10
+    if 'cheap' in name_lower or 'budget' in name_lower:
+        adjustment -= 0.05  # Slight penalty for assumed lower quality/lifespan
+    
+    # CATEGORY-BASED ADJUSTMENTS
+    if any(x in name_lower for x in ['iphone', 'samsung galaxy', 'pixel', 'oneplus']):
+        # Electronics - slight penalty for e-waste, but decent recycling programs
+        if 'refurbished' not in name_lower and 'renewed' not in name_lower:
+            adjustment -= 0.05
+    
+    # Apply adjustment and clamp to 0.0-1.0
+    adjusted = raw_score + adjustment
+    return max(0.05, min(0.95, adjusted))  # Never go to extremes 0 or 1
+
+
 def node_analysis_synthesis(state: AgentState) -> Dict[str, Any]:
     """
     Node 4: Analysis & Synthesis (The "Brain")
@@ -243,7 +282,7 @@ def node_analysis_synthesis(state: AgentState) -> Dict[str, Any]:
             "price_text": alt.get('price_text'),    # Pass through for frontend
             "is_main": alt.get('is_main', False),       # Pass through for identification
             "price_val": price,                          # Pass through for display
-            "eco_score": sentiment_data.get('eco_score', 0.5),  # Environmental friendliness
+            "eco_score": adjust_eco_score(sentiment_data.get('eco_score', 0.5), alt.get('name', '')),  # Adjusted eco score
             "eco_notes": sentiment_data.get('eco_notes', '')     # Eco explanation
         }
 
