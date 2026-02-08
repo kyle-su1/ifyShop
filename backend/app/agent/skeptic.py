@@ -97,10 +97,10 @@ SCORING GUIDELINES:
 
 ENVIRONMENTAL FRIENDLINESS (eco_score 0-1):
 Evaluate based on:
-1. SUSTAINABILITY RESEARCH DATA (if provided below)
-2. Mentions in reviews about durability/longevity  
-3. Build quality and materials (recyclable, sustainable = higher)
-4. Brand's known sustainability reputation
+1. SUSTAINABILITY RESEARCH DATA (Look for B Corp certification, ethical labor)
+2. Company sustainability reputation and manufacturing practices
+3. Mentions in reviews about durability/longevity  
+4. Build quality and materials (recyclable, sustainable = higher)
 5. Packaging and repairability
 
 {eco_section}

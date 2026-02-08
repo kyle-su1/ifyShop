@@ -183,8 +183,8 @@ def search_eco_sustainability(product_name: str) -> Dict[str, any]:
         print("   [Eco] No API key!")
         return {"eco_context": "", "found": False}
 
-    # Simpler, broader eco search query
-    eco_query = f'{product_name} sustainability environmental impact eco-friendly'
+    # Broader and more specific eco search query including B Corp and company ethics
+    eco_query = f'{product_name} sustainability B Corp certification company environmental impact ethical manufacturing'
     print(f"   [Eco] Searching: {eco_query[:60]}...")
 
     payload = {

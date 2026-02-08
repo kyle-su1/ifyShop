@@ -56,7 +56,8 @@ Return a JSON object with these possible keys:
 
 Examples:
 - "I only have $120" → {{"max_budget": 120, "price_sensitivity": 0.9}}
-- "Find cheaper ones" → {{"price_sensitivity": 0.95, "prefer_cheaper": true}}
+- "Find eco-friendly ones" → {{"eco_friendly": 0.9, "price_sensitivity": 0.5}}
+- "I care about sustainability" → {{"eco_friendly": 1.0}}
 - "My budget is tight" → {{"price_sensitivity": 0.85}}
 - "Show me the most affordable" → {{"price_sensitivity": 1.0, "prefer_cheaper": true}}
 
@@ -92,10 +93,11 @@ Return ONLY valid JSON, no markdown."""),
 Return a JSON object with these possible keys:
 - exclude_colors: list of colors to avoid
 - prefer_colors: list of preferred colors
-- prefer_brands: list of preferred brands (extract from "I like X", "I prefer X", "X is good", or just "X")
+- prefer_brands: list of preferred brands
 - exclude_brands: list of brands to avoid
 - style_keywords: list of style descriptors (e.g., "modern", "minimalist")
 - max_budget: number (if user mentions specific dollar amount)
+- eco_friendly: float 0.0-1.0 (1.0 if user explicitly asks for sustainable/eco-friendly options)
 
 Examples:
 - "I don't like red" -> {{"exclude_colors": ["red"]}}
@@ -103,6 +105,7 @@ Examples:
 - "I prefer Nike" -> {{"prefer_brands": ["Nike"]}}
 - "I like Panasonic" -> {{"prefer_brands": ["Panasonic"]}}
 - "Sony is better" -> {{"prefer_brands": ["Sony"]}}
+- "I want sustainable products" -> {{"eco_friendly": 1.0}}
 - "I only have $120" -> {{"max_budget": 120}}
 
 Return ONLY valid JSON, no markdown."""),

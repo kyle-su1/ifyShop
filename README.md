@@ -71,11 +71,12 @@ Access apps at:
 
 ## 🏗️ Architecture
 
-The system uses a **Two-Stage Pipeline** managed by **LangGraph**.
-1.  **Fast Detection**: Instant bounding boxes using Gemini 2.0 Flash.
-2.  **Deep Analysis**: On-demand market research and fake review detection.
+The system uses a **multi-stage agentic pipeline** orchestrated by **LangGraph**.
 
-👉 **[Read the full Architecture Documentation](docs/architecture.md)** for details on Agent Nodes, Logic Flow, and Models.
+```placeholder image
+```
+
+👉 **[Read the full Architecture Documentation](docs/architecture.md)** for detailed node responsibilities, scoring logic, and data flow.
 
 ---
 
@@ -103,7 +104,6 @@ The system uses a **Two-Stage Pipeline** managed by **LangGraph**.
 - **PostgreSQL**: Primary database for user data.
 - **Snowflake**: Data warehouse for product catalog and vector search.
 - **Auth0**: Secure authentication.
-- **Redis**: Caching layer for search results.
 - **Docker**: Containerization.
 
 **Frontend**
