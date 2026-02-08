@@ -56,14 +56,21 @@ class AgentState(TypedDict):
     alternatives_analysis: Optional[List[dict]]
     # Structure: List of ReviewSentiment dicts corresponding to candidates
 
-    first_visit: bool = False # Flag for cold start logic
+    
+    # State-Aware Veto Control
+    skeptic_loop_count: int = 0
+    skeptic_decision: Optional[str] = "proceed" # 'veto' or 'proceed'
+    skeptic_feedback_query: Optional[str] = None
+    market_warning: Optional[str] = None
+
+    # Node 6: Chat & Router
 
     # Node 6: Chat & Router
     session_id: Optional[str]
     chat_history: List[dict] # List of messages: {'role': 'user', 'content': '...'}
     router_decision: Optional[str] # 'vision_search', 'chat', 'update_preferences', 'market_scout_search'
     loop_step: Optional[str] # Control flow signal from Chat Node: 'analysis_node', 'market_scout_node', 'end'
-
+    
     # Control Flags for Two-Stage Pipeline
     detect_only: bool = False # If True, stop after Vision Node
     skip_vision: bool = False # If True, skip Vision Node (used for Deep Analysis stage)

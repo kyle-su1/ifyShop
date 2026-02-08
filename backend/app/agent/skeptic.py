@@ -28,6 +28,12 @@ class ReviewSentiment(BaseModel):
     cons: List[str] = Field(default_factory=list, description="Key flaws mentioned by real users")
     verdict: str = Field(..., description="One-line final verdict (e.g., 'Solid buy', 'Avoid - Likely scams', 'Good but overpriced')")
 
+class VetoDecision(BaseModel):
+    decision: str = Field(..., description="'veto' or 'proceed'")
+    better_search_query: Optional[str] = Field(None, description="A specific, mutated search query to find better results if vetoing (e.g., 'Sony WH-1000XM5 reddit reviews')")
+    reason: str = Field(..., description="Why we are vetoing or proceeding")
+    market_warning: Optional[str] = Field(None, description="Warning to display if we are forced to proceed despite low quality")
+
 # --- Agent Logic ---
 
 from app.core.config import settings
@@ -160,7 +166,65 @@ DO NOT default to 0.5 - make an educated assessment based on product type."""
                 verdict="Error"
             )
 
-# Convenience function
+    def evaluate_candidates_for_veto(self, candidates: List[dict], user_prefs: dict, loop_count: int) -> VetoDecision:
+        """
+        State-Aware Veto Logic ("The Gatekeeper")
+        """
+        # 1. Fail Fast using Heuristics first? 
+        # For now, we trust the LLM to be the judge as it needs to understand context (Droppshipping vs Budget Brand)
+        
+        candidates_context = "\n".join([
+            f"- {c.get('name')} (Price: {c.get('price_text')})" for c in candidates
+        ])
+        
+        pref_context = ""
+        if user_prefs.get('price_sensitivity', 0) > 0.7:
+             pref_context = "User is Price Sensitive (Budget Conscious). Do NOT veto items just because they are cheap generic brands, unless they are scams."
+        elif user_prefs.get('quality', 0) > 0.7:
+             pref_context = "User wants Quality/Premium. Veto cheap knockoffs diligently."
+             
+        system_prompt = f"""You are the 'Gatekeeper' for a Shopping Agent.
+Your job is to decide if the products we found are good enough to show the user, or if we should try searching again.
+
+Current Search Iteration: {loop_count} / 2 (Max 2)
+
+CANDIDATES FOUND:
+{candidates_context}
+
+USER PREFERENCES:
+{pref_context}
+
+RULES:
+1. LOOP 0 (First Try): Be Strict. faster to retry now than show bad results.
+   - Veto if all products look like "dropshipped junk" (random all-caps brands, identical generic images).
+   - Veto if products are completely irrelevant to the User's Intent.
+2. LOOP 1 (Second Try): Be Lenient. Only veto if products are DANGEROUS or SCAMS.
+   - Accept "mediocre" products if that's all the market has.
+3. LOOP 2 (Final): FORCE PROCEED. Do not veto.
+   - Set "decision": "proceed"
+   - Add a "market_warning" if quality is low.
+
+QUERY MUTATION:
+If you VETO, you MUST provide a 'better_search_query'.
+- If the issue was "Generic Junk", append "reddit", "best", or specific reputable brands.
+- Example: "Wireless earbuds" -> "Best budget wireless earbuds under $50 reddit"
+
+Output JSON adhering to VetoDecision schema.
+"""
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("human", "Evaluate these candidates.")
+        ])
+        
+        parser = PydanticOutputParser(pydantic_object=VetoDecision)
+        chain = prompt | self.llm | parser
+        
+        try:
+             return chain.invoke({})
+        except Exception as e:
+             logger.error(f"Veto Analysis Failed: {e}")
+             return VetoDecision(decision="proceed", reason="Error in Veto Logic", market_warning=None)
+
 log_file = "/app/debug_output.txt"
 def log_debug(message):
     try:
@@ -169,43 +233,18 @@ def log_debug(message):
     except Exception:
         pass
 
-def analyze_reviews(product_name: str, reviews_data: List[dict]) -> dict:
-    """
-    Wrapper to be called by API/LangGraph.
-    Converts dicts -> Pydantic Models -> Analyzes -> Returns Dict
-    """
-    log_debug(f"--- 3. Executing Skeptic Node (The Critic) for {product_name} ---")
-    
-    agent = SkepticAgent()
-    
-    # Validation/Conversion
-    valid_reviews = []
-    for r in reviews_data:
-        try:
-            # Handle potential source/url field mismatches or missing fields
-            # The Tavily client returns ReviewSnippet(source, url, snippet)
-            # The Review model expects (source, text, rating, date)
-            # Mapping snippet -> text
-            review_dict = {
-                "source": r.get("source", "Unknown"),
-                "text": r.get("snippet", "") or r.get("text", ""),
-                "rating": r.get("rating"),
-                "date": r.get("date")
-            }
-            valid_reviews.append(Review(**review_dict))
-        except Exception as e:
-            logger.warning(f"Skipping malformed review: {e}")
-            log_debug(f"Skipping malformed review: {e}")
-            continue
-            
-    log_debug(f"Valid reviews count: {len(valid_reviews)}")
-    
-    try:
-        result = agent.analyze_reviews(product_name, valid_reviews)
-        log_debug("Skeptic analysis completed successfully.")
         return result.model_dump()
     except Exception as e:
         log_debug(f"Skeptic analysis CRASHED: {e}")
         import traceback
         log_debug(traceback.format_exc())
         raise e
+
+def check_veto_status(candidates: List[dict], user_prefs: dict, loop_count: int) -> dict:
+     agent = SkepticAgent()
+     try:
+         decision = agent.evaluate_candidates_for_veto(candidates, user_prefs, loop_count)
+         return decision.model_dump()
+     except Exception as e:
+         logger.error(f"Check Veto Status Failed: {e}")
+         return {"decision": "proceed", "reason": "Error"}

@@ -4,11 +4,11 @@ from app.agent.state import AgentState
 from app.agent.nodes import (
     node_user_intent_vision,
     node_discovery_runner,
-    node_market_scout,
-    node_skeptic_critique, 
-    node_analysis_synthesis,
-    node_response_formulation
+    node_market_scout
 )
+from app.agent.nodes.critique import node_skeptic_critique, node_skeptic_veto 
+from app.agent.nodes.analysis import node_analysis_synthesis
+from app.agent.nodes.response import node_response_formulation
 from app.agent.nodes.router import node_router
 from app.agent.nodes.chat import node_chat
 from typing import Dict, Any
@@ -23,6 +23,10 @@ def node_merge_parallel(state: AgentState) -> Dict[str, Any]:
     # Just return empty dict - state already has what we need
     return {}
 
+# Fan Out Node to start parallel execution if Veto passes
+def node_fan_out(state: AgentState) -> Dict[str, Any]:
+    return {}
+
 # 1. Define the Graph
 workflow = StateGraph(AgentState)
 
@@ -32,6 +36,8 @@ workflow.add_node("vision_node", node_user_intent_vision)
 workflow.add_node("research_node", node_discovery_runner)
 workflow.add_node("market_scout_node", node_market_scout)
 workflow.add_node("chat_node", node_chat)
+workflow.add_node("veto_node", node_skeptic_veto) # New Veto Check Node
+workflow.add_node("parallel_start_node", node_fan_out) # New Branch Node
 workflow.add_node("skeptic_node", node_skeptic_critique)
 workflow.add_node("analysis_node", node_analysis_synthesis)
 workflow.add_node("merge_node", node_merge_parallel)
@@ -112,16 +118,42 @@ workflow.add_conditional_edges(
 # Research -> Market Scout
 workflow.add_edge("research_node", "market_scout_node")
 
-# Market Scout -> PARALLEL: Skeptic AND Analysis
-# Both nodes run simultaneously after Market Scout
-workflow.add_edge("market_scout_node", "skeptic_node")
-workflow.add_edge("market_scout_node", "analysis_node")
+# Market Scout -> VETO CHECK (New Step)
+workflow.add_edge("market_scout_node", "veto_node")
+
+# Veto Node -> Conditional (Loop or Proceed)
+def route_veto_result(state: AgentState):
+    """
+    Check if Skeptic Vetoed the results (Fail Fast).
+    If VETO -> Loop back to Market Scout
+    If PROCEED -> Continue into Parallel Analysis (Fan Out)
+    """
+    decision = state.get("skeptic_decision", "proceed")
+    
+    if decision == "veto":
+        print(f"--- 🔄 FAIL FAST: VETO DETECTED. Looping directly from Veto Node. ---")
+        return "market_scout_node"
+    
+    return "parallel_start_node"
+
+workflow.add_conditional_edges(
+    "veto_node",
+    route_veto_result,
+    {
+        "market_scout_node": "market_scout_node",
+        "parallel_start_node": "parallel_start_node"
+    }
+)
+
+# Parallel Start -> Skeptic AND Analysis
+workflow.add_edge("parallel_start_node", "skeptic_node")
+workflow.add_edge("parallel_start_node", "analysis_node")
 
 # Both parallel branches -> Merge Node
 workflow.add_edge("skeptic_node", "merge_node")
 workflow.add_edge("analysis_node", "merge_node")
 
-# Merge -> Response
+# Merge -> Response (Veto already handled)
 workflow.add_edge("merge_node", "response_node")
 
 # Response -> End

@@ -6,6 +6,45 @@ from langchain_core.messages import HumanMessage
 from app.core.config import settings
 import json
 
+def node_skeptic_veto(state: AgentState) -> Dict[str, Any]:
+    """
+    Node 2.5: The Veto Check (Fail Fast)
+    Before running expensive analysis, check if we should even proceed.
+    """
+    print("--- 2.5 Executing Veto Check (The Gatekeeper) ---")
+    
+    # --- VETO CHECK (State-Aware) ---
+    from app.agent.skeptic import check_veto_status
+    
+    # We need candidates from Market Scout to perform Veto
+    market_scout_data = state.get('market_scout_data', {})
+    candidates = market_scout_data.get('candidates', [])
+    user_prefs = state.get('user_preferences', {})
+    loop_count = state.get('skeptic_loop_count', 0)
+    
+    veto_result = check_veto_status(candidates, user_prefs, loop_count)
+    print(f"   [Veto] Decision: {veto_result.get('decision')} (Reason: {veto_result.get('reason')})")
+    
+    if veto_result.get('decision') == 'veto':
+         print(f"   [Veto] 🛑 VETO TRIGGERED. Loop: {loop_count}. Mutation: {veto_result.get('better_search_query')}")
+         # Return Veto Signal to State
+         return {
+             "skeptic_decision": "veto", 
+             "skeptic_feedback_query": veto_result.get('better_search_query'),
+             "skeptic_loop_count": loop_count + 1,
+             "market_warning": None 
+         }
+    else:
+         # Propagate warning if any
+         market_warning = veto_result.get('market_warning')
+         if market_warning:
+              print(f"   [Veto] ⚠️ Proceeding with Market Warning: {market_warning}")
+         
+         return {
+             "skeptic_decision": "proceed",
+             "market_warning": market_warning
+         }
+
 def node_skeptic_critique(state: AgentState) -> Dict[str, Any]:
     """
     Node 3: The Skeptic (Critique & Verification)
@@ -25,6 +64,7 @@ def node_skeptic_critique(state: AgentState) -> Dict[str, Any]:
     start_time = time.time()
     
     research_results = state.get('research_data', {})
+    market_warning = state.get('market_warning') # Get warning from Veto node
     
     # --- Check Cache ---
     import hashlib
@@ -44,6 +84,8 @@ def node_skeptic_critique(state: AgentState) -> Dict[str, Any]:
         print(f"--- Critique Node: Cache Hit in {cache_time:.2f}s ---")
         return {"risk_report": cached_report}
     # -------------------
+
+    # Initialize Skeptic Agent
 
     # Initialize Skeptic Agent
     llm = ChatGoogleGenerativeAI(model=settings.MODEL_REASONING, google_api_key=settings.GOOGLE_API_KEY)
@@ -107,4 +149,9 @@ def node_skeptic_critique(state: AgentState) -> Dict[str, Any]:
     existing_timings = state.get('node_timings', {}) or {}
     existing_timings['critique'] = total_time
     
-    return {"risk_report": risk_report, "node_timings": existing_timings}
+    return {
+        "risk_report": risk_report, 
+        "node_timings": existing_timings,
+        "skeptic_decision": "proceed",
+        "market_warning": market_warning if 'market_warning' in locals() else None
+    }

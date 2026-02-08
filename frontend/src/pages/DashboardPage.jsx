@@ -221,6 +221,7 @@ const DashboardPage = () => {
     const [threadId, setThreadId] = useState(null);
     const [sessionState, setSessionState] = useState(null);
     const [selectedProduct, setSelectedProduct] = useState(null);
+    const [isRefining, setIsRefining] = useState(false); // Visual loop state
 
     // Poll backend health
     useEffect(() => {
@@ -268,9 +269,20 @@ const DashboardPage = () => {
         setChatMessages([...newMessages, { role: 'assistant', content: null, isThinking: true }]);
 
         // Animate agent steps (simulated progress)
+        let seconds = 0;
         const stepInterval = setInterval(() => {
-            setAgentStep(prev => (prev < 4 ? prev + 1 : prev));
-        }, 2500); // ~10s total for 4 steps
+            seconds++;
+            if (seconds === 2) setAgentStep(1);
+            if (seconds === 5) setAgentStep(2);
+            if (seconds === 9) setAgentStep(3);
+
+            // Loop Trigger (>14s means Veto likely)
+            if (seconds === 14) {
+                setIsRefining(true);
+                setAgentStep(2);
+            }
+            if (seconds === 20) setAgentStep(3);
+        }, 1000);
 
         try {
             const token = await getAccessTokenSilently();
@@ -332,6 +344,7 @@ const DashboardPage = () => {
             }
 
             clearInterval(stepInterval);
+            setIsRefining(false);
             setAgentStep(5); // Complete
 
             // Replace thinking with AI response
@@ -504,6 +517,29 @@ const DashboardPage = () => {
                             {/* VISUAL RESULTS */}
                             {/* VISUAL RESULTS REMOVED (Moved to Left Panel) */}
 
+                            {/* --- DEEP SEARCH NOTIFICATION --- */}
+                            {analysisResult && analysisResult.was_refined && (
+                                <div className="mb-6 bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 flex items-center gap-4 animate-fade-in relative overflow-hidden group">
+                                    {/* Background glow */}
+                                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                                    <div className="bg-indigo-500/20 p-2 rounded-lg text-indigo-400 shrink-0 flex items-center justify-center">
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-bold text-indigo-300 uppercase tracking-wide flex items-center gap-2">
+                                            Deep Search Activated
+                                            <span className="text-[10px] bg-indigo-500/20 px-1.5 py-0.5 rounded text-indigo-300 border border-indigo-500/20">Auto-Refined</span>
+                                        </h4>
+                                        <p className="text-sm text-gray-400 mt-1 leading-relaxed">
+                                            {analysisResult.refinement_context || analysisResult.refinement_reason || "Initial results didn't meet our quality standards, so we performed an extra search cycle to find better options."}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
                             {analysisResult ? (
                                 <div className="animate-fade-in space-y-8">
                                     {/* --- MAIN PRODUCT CARD --- */}
@@ -656,7 +692,7 @@ const DashboardPage = () => {
                                     </div>
                                 </div>
                             ) : isChatAnalyzing ? (
-                                <AgentStatusDisplay activeStep={agentStep} />
+                                <AgentStatusDisplay activeStep={agentStep} isRefining={isRefining} />
                             ) : (
                                 <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4 py-12">
                                     <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-2 group-hover:bg-white/10 transition-colors">

@@ -1,6 +1,6 @@
 import React from 'react';
 
-const AgentStatusDisplay = ({ activeStep, error }) => {
+const AgentStatusDisplay = ({ activeStep, error, isRefining }) => {
     const steps = [
         {
             label: 'Vision Processing',
@@ -14,7 +14,7 @@ const AgentStatusDisplay = ({ activeStep, error }) => {
         },
         {
             label: 'Market Scout',
-            detail: 'Searching alternatives...',
+            detail: isRefining ? 'Re-scanning market for better options...' : 'Searching alternatives...',
             icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
         },
         {
@@ -34,11 +34,18 @@ const AgentStatusDisplay = ({ activeStep, error }) => {
             <div className="w-full max-w-md">
                 {/* Header */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-500/10 rounded-2xl mb-4">
-                        <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-500/10 rounded-2xl mb-4 relative">
+                        {isRefining && (
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full animate-ping" />
+                        )}
+                        <div className={`w-8 h-8 border-3 ${isRefining ? 'border-amber-500' : 'border-emerald-500'} border-t-transparent rounded-full animate-spin`} />
                     </div>
-                    <h3 className="text-xl font-bold text-white mb-2">Analyzing Your Product</h3>
-                    <p className="text-sm text-gray-500">"If I shop, I use ifyShop"</p>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                        {isRefining ? 'Deep Search Activated' : 'Analyzing Your Product'}
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                        {isRefining ? 'Skeptic Agent detected low quality results. Looping...' : '"If I shop, I use ifyShop"'}
+                    </p>
                 </div>
 
                 {/* Steps */}
@@ -48,12 +55,20 @@ const AgentStatusDisplay = ({ activeStep, error }) => {
                         const isCurrent = idx === activeStep;
                         const isPending = idx > activeStep;
 
+                        // Special styling for refining state (amber/orange theme)
+                        const activeColor = isRefining && isCurrent ? 'text-amber-400' : 'text-emerald-400';
+                        // Explicit classes for Tailwind JIT
+                        const activeBg = isRefining && isCurrent ? 'bg-amber-500/10' : 'bg-emerald-500/10';
+                        const activeBorder = isRefining && isCurrent ? 'border-amber-500/30' : 'border-emerald-500/30';
+                        const activePulse = isRefining && isCurrent ? 'bg-amber-500' : 'bg-emerald-500';
+                        const activeGradient = isRefining && isCurrent ? 'from-amber-500/10 shadow-amber-500/10' : 'from-emerald-500/10 shadow-emerald-500/10';
+
                         return (
                             <div
                                 key={idx}
                                 className={`
                                     relative flex items-center gap-4 p-4 rounded-xl border transition-all duration-500 animate-fade-in-up
-                                    ${isCurrent ? 'bg-gradient-to-r from-emerald-500/10 to-transparent border-emerald-500/40 scale-[1.02] shadow-lg shadow-emerald-500/10' : ''}
+                                    ${isCurrent ? `bg-gradient-to-r ${activeGradient} to-transparent ${activeBorder} scale-[1.02] shadow-lg` : ''}
                                     ${isComplete ? 'bg-white/5 border-emerald-500/20' : ''}
                                     ${isPending ? 'border-white/5 opacity-40' : ''}
                                 `}
@@ -68,8 +83,8 @@ const AgentStatusDisplay = ({ activeStep, error }) => {
                                             </svg>
                                         </div>
                                     ) : isCurrent ? (
-                                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-                                            <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                                        <div className={`w-10 h-10 rounded-xl ${activeBg} ${activeBorder} flex items-center justify-center`}>
+                                            <div className={`w-5 h-5 border-2 ${isRefining ? 'border-amber-500' : 'border-emerald-500'} border-t-transparent rounded-full animate-spin`}></div>
                                         </div>
                                     ) : (
                                         <div className="w-10 h-10 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-lg text-emerald-400/80">
@@ -84,7 +99,7 @@ const AgentStatusDisplay = ({ activeStep, error }) => {
                                         {step.label}
                                     </p>
                                     {isCurrent && (
-                                        <p className="text-xs text-emerald-400 mt-0.5 animate-pulse">{step.detail}</p>
+                                        <p className={`text-xs ${activeColor} mt-0.5 animate-pulse`}>{step.detail}</p>
                                     )}
                                     {isComplete && (
                                         <p className="text-xs text-emerald-600 mt-0.5">Complete</p>
@@ -93,7 +108,7 @@ const AgentStatusDisplay = ({ activeStep, error }) => {
 
                                 {/* Progress indicator for current */}
                                 {isCurrent && (
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                    <div className={`w-2 h-2 rounded-full ${activePulse} animate-pulse`} />
                                 )}
                             </div>
                         );
@@ -108,7 +123,7 @@ const AgentStatusDisplay = ({ activeStep, error }) => {
                     </div>
                     <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                         <div
-                            className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-all duration-700 ease-out"
+                            className={`h-full bg-gradient-to-r ${isRefining ? 'from-amber-600 to-amber-400' : 'from-emerald-600 to-emerald-400'} rounded-full transition-all duration-700 ease-out`}
                             style={{ width: `${(activeStep / steps.length) * 100}%` }}
                         />
                     </div>

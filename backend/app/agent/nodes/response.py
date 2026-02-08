@@ -213,6 +213,18 @@ JSON OUTPUT FORMAT:
     # Add timing info to final payload for frontend
     final_payload['timing'] = existing_timings
     
+    # --- REFINEMENT BADGE LOGIC ---
+    skeptic_count = state.get('skeptic_loop_count', 0)
+    market_warning = state.get('market_warning')
+    
+    if skeptic_count > 0:
+        final_payload['was_refined'] = True
+        final_payload['refinement_reason'] = "We detected low-quality initial results, so we automatically refined the search to find better options."
+        
+    if market_warning:
+        # If there's a specific warning and we refined, append it
+        final_payload['refinement_context'] = market_warning
+        
     return {"final_recommendation": final_payload, "node_timings": existing_timings}
 
 

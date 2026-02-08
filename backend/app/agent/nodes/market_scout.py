@@ -120,7 +120,15 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
 
     # 2. Construct Queries with filters applied
     queries = []
-    if visual_attrs:
+    
+    # Check for Veto Feedback Loop (Priority)
+    feedback_query = state.get('skeptic_feedback_query')
+    if feedback_query:
+        print(f"   [Scout] 🔄 Improving search with Veto Feedback: '{feedback_query}'")
+        queries = [feedback_query] 
+        # Add a variation just in case
+        queries.append(f"{feedback_query} review")
+    elif visual_attrs:
         queries.append(f"{search_modifiers[0]} to {product_name} {visual_attrs}{color_filter}{brand_filter}{style_filter} 2026")
         queries.append(f"similar {visual_attrs} like {product_name}{color_filter}{brand_filter}")
     else:     
