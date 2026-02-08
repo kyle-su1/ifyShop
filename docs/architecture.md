@@ -113,10 +113,12 @@ This phase runs two parallel agents to gather deep data.
     *   Validated external findings (from Tavily) are **upserted** to Snowflake `products` with 3072-dim embeddings.
     *   **Purpose**: Continually expands the internal knowledge base with high-quality findings.
 *   **Data Capture**: Extracts `thumbnail` (as image_url), `price_text`, and `purchase_link` from shopping results.
+*   **Optimization**: Enrichment is limited to **Top 2** candidates. Reviews are skipped for alternatives (LLM already captures recommendation reasons).
 
 ### **Node 3: The Skeptic (Critique & Verification)**
 *   **Input**: Raw product data (Main Item) + Alternative Candidates (Scout).
 *   **Agent**: **Skeptic Agent** (`gemini-2.0-flash`).
+*   **Execution**: Runs **in parallel** with Node 4 (Analysis) for latency optimization.
 *   **Responsibilities**:
     1.  **Fake Review Detection**: Analyze patterns in reviews for the main product.
     2.  **Deal Verification**: Check if the "sale price" is actually a tactic.
@@ -125,6 +127,7 @@ This phase runs two parallel agents to gather deep data.
 ### **Node 4: Analysis & Synthesis (The "Brain")**
 *   **Input**: Product Data + Contextual Scout Data + Risk Report.
 *   **Agent**: **Analyst Agent** (Gemini 2.0 Flash).
+*   **Execution**: Runs **in parallel** with Node 3 (Skeptic). Both outputs are merged before Response node.
 *   **Logic**:
     1.  **Preference Loading**: Retrieves explicit user weights.
     2.  **Weighted Scoring**: Calculates a final match score (0-100) for each product based on price, quality, and trust.
@@ -176,8 +179,8 @@ The frontend (`DashboardPage.jsx`) uses the `detected_objects` list from the API
 
 ### **Latency Optimization Strategy**
 To ensure the analysis runs within strict time limits:
-*   **Parallelism**: Nodes 2 (Research) and 2b (Scout) use `ThreadPoolExecutor` for external API calls.
-*   **Candidate Limiting**: Market Scout limits enrichment to the **Top 3** candidates to prevent API fan-out.
+*   **Parallelism**: Nodes 2 (Research) and 2b (Scout) use `ThreadPoolExecutor` for external API calls. Nodes 3 (Critique) and 4 (Analysis) run in parallel.
+*   **Candidate Limiting**: Market Scout limits enrichment to the **Top 2** candidates to prevent API fan-out.
 *   **Timeouts**: All parallel executions have strict timeouts (10-20s) to prevent hanging.
 *   **Context Pruning**: The "Skeptic" agent only analyzes the Top 5 reviews per product to reduce LLM input tokens.
 
