@@ -123,11 +123,14 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
     
     # Check for Veto Feedback Loop (Priority)
     feedback_query = state.get('skeptic_feedback_query')
+    is_retry = state.get('skeptic_loop_count', 0) > 0
+    
     if feedback_query:
         print(f"   [Scout] 🔄 Improving search with Veto Feedback: '{feedback_query}'")
-        queries = [feedback_query] 
-        # Add a variation just in case
-        queries.append(f"{feedback_query} review")
+        queries = [feedback_query]
+        # Optimization: On retry, do NOT add extra variation. 1 Query is enough.
+        if not is_retry: 
+            queries.append(f"{feedback_query} review")
     elif visual_attrs:
         queries.append(f"{search_modifiers[0]} to {product_name} {visual_attrs}{color_filter}{brand_filter}{style_filter} 2026")
         queries.append(f"similar {visual_attrs} like {product_name}{color_filter}{brand_filter}")
@@ -299,46 +302,54 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
                     if not name:
                         return
                     
+                    if not name:
+                        return
+                    
+                    # --- ENRICHMENT LOGIC ---
+                    # 1. Try Google Shopping (SerpAPI) first for best prices/images
                     try:
-                        # Construct a more specific query with category
-                        search_query = f"{name} {category}".strip()
-                        temp_query = ProductQuery(canonical_name=search_query)
-                        temp_trace = []
-                        
-                        # Get prices
-                        price_offers = get_shopping_offers(temp_query, temp_trace)
-
-                        # Filter out accessories/parts based on title
-                        valid_offers = []
-                        if price_offers:
-                            bad_keywords = ["lamp", "bulb", "remote", "mount", "bracket", "case", "bag", "filter", "adapter", "cable", "part", "replacement", "stand", "ceiling", "screen"]
+                            # Construct a more specific query with category
+                            search_query = f"{name} {category}".strip()
+                            temp_query = ProductQuery(canonical_name=search_query)
+                            temp_trace = []
                             
-                            for p in price_offers:
-                                title_lower = (p.title or "").lower()
-                                # Check if title contains bad keywords BUT is not the main category itself (imperfect heuristic)
-                                # e.g. "Replacement Lamp" -> Bad. "Projector with Lamp" -> Good?
-                                # Simple check: if bad keyword exists, skip.
-                                if not any(kw in title_lower for kw in bad_keywords):
-                                    valid_offers.append(p)
-                                else:
-                                    print(f"       -> Skipped accessory: {p.title}")
-                                    
-                        # Fallback to all offers if filtering is too aggressive
-                        if not valid_offers and price_offers:
-                            valid_offers = price_offers
-                            print(f"       -> Filtering removed all offers, reverting to original list.")
-                        
-                        cand['prices'] = [
-                            {
-                                "vendor": p.vendor, 
-                                "price": p.price_cents / 100, 
-                                "price_cents": p.price_cents, # Add for consistency with research.py
-                                "currency": p.currency, 
-                                "url": p.url,
-                                "thumbnail": p.thumbnail
-                            }
-                            for p in valid_offers
-                        ]
+                            # Get prices
+                            price_offers = get_shopping_offers(temp_query, temp_trace)
+
+                            # Filter out accessories/parts based on title
+                            valid_offers = []
+                            if price_offers:
+                                bad_keywords = ["lamp", "bulb", "remote", "mount", "bracket", "case", "bag", "filter", "adapter", "cable", "part", "replacement", "stand", "ceiling", "screen"]
+                                
+                                for p in price_offers:
+                                    title_lower = (p.title or "").lower()
+                                    if not any(kw in title_lower for kw in bad_keywords):
+                                        valid_offers.append(p)
+                                    else:
+                                        print(f"       -> Skipped accessory: {p.title}")
+                                        
+                            # Fallback to all offers if filtering is too aggressive
+                            if not valid_offers and price_offers:
+                                valid_offers = price_offers
+                                print(f"       -> Filtering removed all offers, reverting to original list.")
+                        except Exception as e:
+                             print(f"       -> Enrichment API failed: {e}")
+                             price_offers = []
+                             valid_offers = []
+                    
+                    try:
+                        if not is_retry: # Only process offers if we fetched them
+                            cand['prices'] = [
+                                {
+                                    "vendor": p.vendor, 
+                                    "price": p.price_cents / 100, 
+                                    "price_cents": p.price_cents,
+                                    "currency": p.currency, 
+                                    "url": p.url,
+                                    "thumbnail": p.thumbnail
+                                }
+                                for p in valid_offers
+                            ]
                         
                         # --- PRICE LOGGING (Summary Only) ---
                         try:
@@ -360,36 +371,63 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
                             cand['estimated_price'] = f"${best_offer.price_cents / 100:.2f} {best_offer.currency or 'CAD'}"
                             cand['price_text'] = f"${best_offer.price_cents / 100:.2f}"
                             print(f"       -> {name}: {len(valid_offers)} valid prices found. Best: {cand['price_text']}")
-                            print(f"       -> {name}: {len(valid_offers)} valid prices found.")
                         else:
-                            # Fallback Logic: Use Tavily data or Google Shopping Search
+                            # --- FALLBACK: TARGETED TAVILY SEARCH ---
+                            # If Google Shopping fails (Quota/Error), use Tavily to find price/image
+                            print(f"       -> {name}: Google Shopping failed. Attempting Tavily Fallback Search...")
                             
-                            # 1. Try to find a fallback image from Tavily results
-                            # Simple heuristic: pick the first available fallback image
-                            # In a real system, we might try to match semantic similarity or alt text
-                            if fallback_images and not cand.get('image_url'):
-                                cand['image_url'] = fallback_images[0] 
-                            
-                            # 2. Try to find a fallback link from Tavily results
-                            # Match the candidate name to a search result URL if possible
-                            fallback_link = None
-                            for r in unique_results:
-                                if name.lower() in r.get('title', '').lower():
-                                    fallback_link = r.get('url')
-                                    break
-                            
-                            if fallback_link:
-                                cand['purchase_link'] = fallback_link
-                            else:
-                                # Create Google Shopping fallback if no direct link found
-                                import urllib.parse
-                                encoded_name = urllib.parse.quote(name)
-                                cand['purchase_link'] = f"https://www.google.com/search?tbm=shop&q={encoded_name}"
+                            try:
+                                from app.sources.tavily_client import search_market_context
+                                fallback_results = search_market_context(f"{name} price image")
                                 
-                            cand['estimated_price'] = "Check Price"
-                            cand['price_text'] = "Check Price"
-                            cand['image_url'] = cand.get('image_url') or "https://via.placeholder.com/150?text=No+Image" # Placeholder if no image
-                            print(f"       -> {name}: No direct offers, using fallback link/image.")
+                                # 1. Extract Price from Fallback Results
+                                extracted_price = None
+                                import re
+                                for r in fallback_results:
+                                    # Look for price text pattern
+                                    prices = re.findall(r'\$[\d,]+(?:\.\d{2})?', r.get('content', ''))
+                                    if prices:
+                                        extracted_price = prices[0]
+                                        if 2 <= len(extracted_price) <= 10:
+                                            break
+                                        extracted_price = None
+                                
+                                if extracted_price:
+                                    cand['estimated_price'] = f"{extracted_price} (Est.)"
+                                    cand['price_text'] = extracted_price
+                                    # Link to the result where we found price
+                                    cand['purchase_link'] = r.get('url')
+                                    print(f"       -> {name}: Recovered price: {extracted_price}")
+                                else:
+                                    cand['estimated_price'] = "Check Price"
+                                    cand['price_text'] = "Check Price"
+                                    # Fallback link
+                                    import urllib.parse
+                                    encoded_name = urllib.parse.quote(name)
+                                    cand['purchase_link'] = f"https://www.google.com/search?q={encoded_name}"
+        
+                                # 2. Extract Image from Fallback Results
+                                # Use the 'images' field if Tavily returned it, else placeholder
+                                # We need to check if ANY result has an image or if global images exist
+                                found_image = None
+                                for r in fallback_results:
+                                     # Sometimes Tavily results have inline images? (Rare)
+                                     # Actually Tavily returns a global 'images' list usually.
+                                     # Let's check the 'images' key in the RESULTDICT if we modified search_market_context
+                                     pass
+                                
+                                # Our search_market_context appends a special dict for images
+                                images_entry = next((r for r in fallback_results if r.get('title') == "Related Images"), None)
+                                if images_entry and images_entry.get('images'):
+                                     found_image = images_entry['images'][0]
+                                
+                                cand['image_url'] = found_image or "https://via.placeholder.com/150?text=No+Image"
+                                
+                            except Exception as e:
+                                print(f"       -> Tavily Fallback failed: {e}")
+                                cand['estimated_price'] = "Check Price"
+                                cand['price_text'] = "Check Price"
+                                cand['image_url'] = "https://via.placeholder.com/150?text=Error"
 
                         # Skip reviews for alternatives - the LLM already captured why each is recommended
                         # This saves ~3-4s per candidate by removing the Tavily API call

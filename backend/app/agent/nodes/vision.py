@@ -47,23 +47,17 @@ def node_user_intent_vision(state: AgentState) -> Dict[str, Any]:
     # ---------------------------------------------------------
     # STAGE 1: FAST DETECTION (Gemini)
     # ---------------------------------------------------------
-    if state.get("detect_only"):
-        log_debug("--- 1. Executing Vision Node (Gemini Fast Mode) ---")
-        print("--- 1. Executing Vision Node (Gemini Fast Mode) ---", flush=True)
-        
+    # Helper for Gemini Vision (Fast Mode / Fallback)
+    def _run_gemini_vision(image_b64):
+        log_debug("--- Executing Vision: Gemini Mode ---")
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI
             from langchain_core.messages import HumanMessage
             from app.core.config import settings
             import json
             
-            log_debug("Sending request to Gemini...")
-            print("Sending request to Gemini...", flush=True)
-            
-            # Check API Key
             if not settings.GOOGLE_API_KEY:
-                 print("ERROR: GOOGLE_API_KEY is missing", flush=True)
-                 raise ValueError("GOOGLE_API_KEY is missing")
+                 return {"product_query": {"error": "GOOGLE_API_KEY missing"}}
 
             llm = ChatGoogleGenerativeAI(
                 model=settings.MODEL_VISION,
@@ -72,75 +66,70 @@ def node_user_intent_vision(state: AgentState) -> Dict[str, Any]:
                 max_output_tokens=1024
             )
             
+            # Enhanced Prompt for Fallback & OCR
             prompt = """
-            Identify the main commercial *products* in this image.
+            Analyze this image for a shopping assistant.
+            1. Identify the main commercial product.
+            2. Transcribe any visible TEXT, model numbers, or brand names (OCR).
+            3. Detect visual attributes (color, material, style).
             
-            CRITICAL NEGATIVE CONSTRAINTS (STRICTLY ENFORCED):
-            - DO NOT DETECT PEOPLE, FACES, MEN, WOMEN, CHILDREN.
-            - DO NOT DETECT BODY PARTS (hands, arms, legs, feet, fingers).
-            - DO NOT bounding box a person holding an object; box ONLY the object itself.
-            - If an object is held, the bounding box must exclude the hand/fingers.
-            - Ignore background clutter, windows, and non-product elements.
+            CRITICAL NEGATIVE CONSTRAINTS:
+            - DO NOT DETECT PEOPLE, FACES, BODY PARTS.
+            - Ignore background clutter.
             
-            Return a JSON object with a key "detected_objects" containing a list of objects.
-            Each object should have:
-            - "name": generic name of the object (e.g. "shoes", "keyboard")
-            - "bounding_box": [ymin, xmin, ymax, xmax] coordinates normalized to 0-1000 scale.
-            - "confidence": score between 0.0 and 1.0.
-            Limit to top 5 prominent objects.
+            Return JSON:
+            {
+                "detected_objects": [
+                    {
+                        "name": "Generic Name (e.g. 'Blue Running Shoes')",
+                        "bounding_box": [ymin, xmin, ymax, xmax],
+                        "confidence": 0.0-1.0
+                    }
+                ],
+                "main_product_name": "Specific Model Name if visible, else Generic Name",
+                "visual_attributes": "comma-separated keywords",
+                "ocr_text": "extracted text"
+            }
             """
             
             message = HumanMessage(
                 content=[
                     {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}}
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
                 ]
             )
             
             response = llm.invoke([message])
             content = response.content.strip()
             
-            # Parse JSON
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0]
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0]
                 
-            gemini_data = json.loads(content)
+            data = json.loads(content)
             
-            # Validate bounding boxes
-            detected_objects = gemini_data.get('detected_objects', [])
-            log_debug(f"Gemini detected {len(detected_objects)} objects")
-            print(f"Gemini detected {len(detected_objects)} objects", flush=True)
-            
-            total_time = time.time() - start_time
-            print(f"Gemini API took {total_time:.2f}s", flush=True)
-            
+            # Map to State Structure
             return {
                 "product_query": {
-                    "canonical_name": "Detected Objects",
-                    "detected_objects": detected_objects # specific boxes
+                    "canonical_name": data.get("main_product_name", "Unknown Product"),
+                    "visual_attributes": data.get("visual_attributes", ""),
+                    "detected_objects": data.get("detected_objects", []),
+                    "ocr_text": data.get("ocr_text", ""),
+                    "source": "gemini_vision"
                 },
-                "bounding_box": [0, 0, 1000, 1000] # Fallback
+                "bounding_box": [0, 0, 1000, 1000]
             }
             
         except Exception as e:
-            log_debug(f"Vision error: {str(e)}")
-            print(f"Vision error: {str(e)}", flush=True)
-            import traceback
-            traceback.print_exc()
-            # Fallback to single box on error
-            return {
-                "product_query": {
-                    "error": str(e),
-                    "detected_objects": [{
-                        "name": "Detection Failed",
-                        "bounding_box": [0, 0, 1000, 1000],
-                        "confidence": 0.0,
-                        "lens_status": "error"
-                    }]
-                }
-            }
+            log_debug(f"Gemini Vision Error: {e}")
+            return {"product_query": {"error": str(e)}}
+
+    # ---------------------------------------------------------
+    # STAGE 1: FAST DETECTION (Gemini)
+    # ---------------------------------------------------------
+    if state.get("detect_only"):
+        return _run_gemini_vision(image_data)
 
     # ---------------------------------------------------------
     # STAGE 2: DEEP IDENTIFICATION (Google Lens)
@@ -154,12 +143,8 @@ def node_user_intent_vision(state: AgentState) -> Dict[str, Any]:
     lens_result = identify_product_with_lens(image_bytes, extension="jpg")
     
     if "error" in lens_result:
-        log_debug(f"Lens error: {lens_result['error']}")
-        return {"product_query": {
-            "error": lens_result["error"],
-            "canonical_name": "Unknown Item",
-            "detected_objects": []
-        }}
+        log_debug(f"Lens error: {lens_result['error']} -> FALLING BACK TO GEMINI")
+        return _run_gemini_vision(image_data)
     
     product_name = lens_result.get("product_name", "Unknown Product")
     confidence = lens_result.get("confidence", 0.5)

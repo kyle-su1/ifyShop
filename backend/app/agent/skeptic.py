@@ -173,8 +173,15 @@ Do NOT claim any company has specific certifications unless that info was provid
         """
         State-Aware Veto Logic ("The Gatekeeper")
         """
-        # 1. Fail Fast using Heuristics first? 
-        # For now, we trust the LLM to be the judge as it needs to understand context (Droppshipping vs Budget Brand)
+        # OPTIMIZATION: If we are on Loop 2 (Final Attempt), FORCE PROCEED without LLM call.
+        # This saves ~1.5s latency and prevents infinite loops.
+        if loop_count >= 1: # "1" is the second try (0-indexed). Max 2 tries means 0, 1.
+             logger.info(f"Veto: Max attempts reached ({loop_count}). Forcing PROCEED.")
+             return VetoDecision(
+                 decision="proceed", 
+                 reason="Max search attempts reached. Proceeding with best available options.",
+                 market_warning="Results may be approximate due to limited market data."
+             )
         
         candidates_context = "\n".join([
             f"- {c.get('name')} (Price: {c.get('price_text')})" for c in candidates
@@ -182,7 +189,7 @@ Do NOT claim any company has specific certifications unless that info was provid
         
         pref_context = ""
         if user_prefs.get('price_sensitivity', 0) > 0.7:
-             pref_context = "User is Price Sensitive (Budget Conscious). Do NOT veto items just because they are cheap generic brands, unless they are scams."
+             pref_context = "User is Price Sensitive (Budget Conscious). **CRITICAL**: Do NOT veto items just because they are cheap generic brands, unless they are obvious SCAMS. 'Good enough' is acceptable."
         elif user_prefs.get('quality', 0) > 0.7:
              pref_context = "User wants Quality/Premium. Veto cheap knockoffs diligently."
              
@@ -197,21 +204,19 @@ CANDIDATES FOUND:
 USER PREFERENCES:
 {pref_context}
 
-RULES:
-1. LOOP 0 (First Try): Be Strict. faster to retry now than show bad results.
-   - Veto if all products look like "dropshipped junk" (random all-caps brands, identical generic images).
+    RULES:
+    1. LOOP 0 (First Try): Be Fair but Verify.
+       - Veto if all products look like incomplete listings or totally wrong category.
+       - **DO NOT VETO** budget/generic brands if the user wants cheap items (Price Sensitivity > 0.7).
+       - Accept "Generic" if it has > 4 star rating or looks functional.
    - Veto if products are completely irrelevant to the User's Intent.
-2. LOOP 1 (Second Try): Be Lenient. Only veto if products are DANGEROUS or SCAMS.
-   - Accept "mediocre" products if that's all the market has.
-3. LOOP 2 (Final): FORCE PROCEED. Do not veto.
-   - Set "decision": "proceed"
-   - Add a "market_warning" if quality is low.
+    2. LOOP 1+: FORCE PROCEED (Handled by code optimization, but here as backup).
+       - Set "decision": "proceed"
 
 QUERY MUTATION:
 If you VETO, you MUST provide a 'better_search_query'.
 - If the issue was "Generic Junk", append "reddit", "best", or specific reputable brands.
 - Example: "Wireless earbuds" -> "Best budget wireless earbuds under $50 reddit"
-
 Output JSON adhering to VetoDecision schema.
 """
         prompt = ChatPromptTemplate.from_messages([
@@ -236,12 +241,7 @@ def log_debug(message):
     except Exception:
         pass
 
-        return result.model_dump()
-    except Exception as e:
-        log_debug(f"Skeptic analysis CRASHED: {e}")
-        import traceback
-        log_debug(traceback.format_exc())
-        raise e
+
 
 def check_veto_status(candidates: List[dict], user_prefs: dict, loop_count: int) -> dict:
      agent = SkepticAgent()

@@ -41,7 +41,9 @@ def get_shopping_offers(product: ProductQuery, trace: list) -> List[PriceOffer]:
         data = r.json()
 
         if "error" in data:
-            trace.append({"step": "serpapi", "detail": f"API Error: {data['error']}"})
+            msg = f"SerpAPI Error: {data['error']}"
+            print(f"⚠️ {msg}")
+            trace.append({"step": "serpapi", "detail": msg})
             return []
 
         offers = []
