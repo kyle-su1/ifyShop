@@ -21,6 +21,7 @@ const DashboardPage = () => {
     const [isChatAnalyzing, setIsChatAnalyzing] = useState(false);
     const [chatMessages, setChatMessages] = useState([]);
     const [agentStep, setAgentStep] = useState(0);
+    const [isImageCollapsed, setIsImageCollapsed] = useState(false);
 
     // Poll backend health
     useEffect(() => {
@@ -130,7 +131,7 @@ const DashboardPage = () => {
             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none mix-blend-overlay"></div>
 
 
-            <div className="relative w-full max-w-7xl mx-auto px-6 py-8 flex flex-col min-h-screen">
+            <div className="relative w-full max-w-[95vw] mx-auto px-4 py-8 flex flex-col min-h-screen">
                 {/* Header */}
                 <header className="flex items-center justify-between mb-12">
                     <div className="flex items-center gap-2">
@@ -143,74 +144,103 @@ const DashboardPage = () => {
                     </div>
                 </header>
 
-                {/* Main Interaction Area */}
-                <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-1">
+                {/* Main Interaction Area - 3 Column Layout */}
+                <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch flex-1">
 
-                    {/* Left Panel: Upload */}
-                    <div className="lg:col-span-5 glass-panel rounded-2xl p-1 transition-all duration-300 hover:border-white/20 h-full max-h-[700px]">
-                        <div className="bg-[#121214] rounded-xl p-6 h-full flex flex-col">
-                            <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                                Input Source
+                    {/* Left Panel: Upload - Collapsible */}
+                    <div className={`${isImageCollapsed ? 'lg:col-span-1' : 'lg:col-span-4'} glass-panel rounded-2xl p-1 transition-all duration-300 hover:border-white/20`}>
+                        <div className="bg-[#121214] rounded-xl p-4 h-full flex flex-col">
+                            <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                    {!isImageCollapsed && 'Input'}
+                                </div>
+                                {imageBase64 && (
+                                    <button
+                                        onClick={() => setIsImageCollapsed(!isImageCollapsed)}
+                                        className="p-1 hover:bg-white/10 rounded transition-colors"
+                                        title={isImageCollapsed ? 'Expand image' : 'Collapse image'}
+                                    >
+                                        <svg className={`w-4 h-4 transition-transform ${isImageCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                                        </svg>
+                                    </button>
+                                )}
                             </h3>
 
-                            <div className="flex-1 flex flex-col relative">
-                                {!imageBase64 ? (
-                                    <ImageUploader
-                                        onImageSelected={handleImageSelected}
-                                        overlays={analysisResult?.objects}
-                                    />
-                                ) : (
-                                    <div className="relative rounded-xl overflow-hidden border border-white/10 group flex-1 bg-black/40 flex items-center justify-center">
-                                        <img
-                                            src={imageBase64}
-                                            alt="Analyzed Item"
-                                            className="w-full h-auto max-h-[500px] object-contain"
-                                        />
-
-                                        {/* SCANNING OVERLAY */}
-                                        <ScanningOverlay isScanning={isAnalyzing} />
-
-                                        {/* CHATBOT BOUNDING BOX - highlights what it's researching */}
-                                        {analysisResult?.active_product?.detected_objects?.map((obj, idx) => (
-                                            <BoundingBoxOverlay
-                                                key={idx}
-                                                boundingBox={obj?.bounding_box}
-                                                label={obj?.name || 'Target'}
-                                            />
-                                        ))}
-                                        {/* Change Image Button */}
-                                        {!isAnalyzing && (
-                                            <button
-                                                onClick={() => { setImageBase64(null); setImageFile(null); setAnalysisResult(null); }}
-                                                className="absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full backdrop-blur-sm transition-colors z-20"
-                                                title="Remove Image"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                            </button>
-                                        )}
+                            {isImageCollapsed ? (
+                                <div className="flex-1 flex items-center justify-center">
+                                    <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-white/10">
+                                        <img src={imageBase64} alt="Thumbnail" className="w-full h-full object-cover" />
                                     </div>
-                                )}
+                                </div>
+                            ) : (
+                                <div className="flex-1 flex flex-col relative">
+                                    {!imageBase64 ? (
+                                        <ImageUploader
+                                            onImageSelected={handleImageSelected}
+                                            overlays={analysisResult?.objects}
+                                        />
+                                    ) : (
+                                        <div className="relative rounded-xl overflow-hidden border border-white/10 group flex-1 bg-black/40 flex items-center justify-center">
+                                            <img
+                                                src={imageBase64}
+                                                alt="Analyzed Item"
+                                                className="w-full h-auto max-h-[400px] object-contain"
+                                            />
 
+                                            {/* SCANNING OVERLAY */}
+                                            <ScanningOverlay isScanning={isAnalyzing} />
 
+                                            {/* CHATBOT BOUNDING BOX - highlights what it's researching */}
+                                            {analysisResult?.active_product?.detected_objects?.map((obj, idx) => (
+                                                <BoundingBoxOverlay
+                                                    key={idx}
+                                                    boundingBox={obj?.bounding_box}
+                                                    label={obj?.name || 'Target'}
+                                                />
+                                            ))}
+                                            {/* Change Image Button */}
+                                            {!isAnalyzing && (
+                                                <button
+                                                    onClick={() => { setImageBase64(null); setImageFile(null); setAnalysisResult(null); }}
+                                                    className="absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full backdrop-blur-sm transition-colors z-20"
+                                                    title="Remove Image"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
 
-                                {/* Chat Interface - appears after image is uploaded */}
-                                {imageBase64 && (
-                                    <ChatInterface
-                                        imageBase64={imageBase64}
-                                        onAnalysisStart={handleChatAnalyze}
-                                        isAnalyzing={isChatAnalyzing}
-                                        disabled={!backendReady}
-                                        messages={chatMessages}
-                                        setMessages={setChatMessages}
-                                    />
-                                )}
+                    {/* Middle Panel: Chat */}
+                    <div className={`${isImageCollapsed ? 'lg:col-span-4' : 'lg:col-span-3'} glass-panel rounded-2xl p-1 transition-all duration-300 hover:border-white/20`}>
+                        <div className="bg-[#121214] rounded-xl p-4 h-full flex flex-col">
+                            <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                                Chat
+                            </h3>
+                            <div className="flex-1">
+                                <ChatInterface
+                                    imageBase64={imageBase64}
+                                    onAnalysisStart={handleChatAnalyze}
+                                    isAnalyzing={isChatAnalyzing}
+                                    disabled={!backendReady || !imageBase64}
+                                    messages={chatMessages}
+                                    setMessages={setChatMessages}
+                                />
                             </div>
                         </div>
                     </div>
 
                     {/* Right Panel: Results */}
-                    <div className="lg:col-span-7 glass-panel rounded-2xl p-1 h-full max-h-[700px] overflow-hidden">
+                    <div className={`${isImageCollapsed ? 'lg:col-span-7' : 'lg:col-span-5'} glass-panel rounded-2xl p-1 overflow-hidden`}>
                         <div className="bg-[#121214] rounded-xl p-6 h-full flex flex-col overflow-y-auto">
                             <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
