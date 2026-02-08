@@ -134,6 +134,12 @@ def node_analysis_synthesis(state: AgentState) -> Dict[str, Any]:
 
     alternatives_scored = []
     
+    # Get eco_context from research data
+    eco_data = state.get('research_data', {}).get('eco_data', {})
+    eco_context = eco_data.get('eco_context', '')
+    if eco_context:
+        print(f"   [Analysis] Eco data available ({len(eco_context)} chars)")
+    
     print(f"   [Analysis] Scoring {len(alternatives)} candidates (including Main Product)...")
     log_debug(f"Scoring {len(alternatives)} candidates...")
     
@@ -178,7 +184,7 @@ def node_analysis_synthesis(state: AgentState) -> Dict[str, Any]:
         # Optimization: Limit to top 5 reviews to reduce LLM latency and token usage
         valid_reviews = valid_reviews[:5]
         
-        sentiment_result = local_skeptic_agent.analyze_reviews(alt.get('name'), valid_reviews)
+        sentiment_result = local_skeptic_agent.analyze_reviews(alt.get('name'), valid_reviews, eco_context)
         sentiment_data = sentiment_result.model_dump()
         
         # Extract features for scoring
@@ -194,7 +200,8 @@ def node_analysis_synthesis(state: AgentState) -> Dict[str, Any]:
             sentiment_score=sentiment_data.get('sentiment_score', 0.0),
             price_val=price,
             market_avg=market_avg, 
-            weights=final_weights
+            weights=final_weights,
+            eco_score=sentiment_data.get('eco_score', 0.5)
         )
         
         return {
@@ -208,7 +215,9 @@ def node_analysis_synthesis(state: AgentState) -> Dict[str, Any]:
             "link": alt.get('purchase_link'),       # Mapped for frontend (Alternatives)
             "price_text": alt.get('price_text'),    # Pass through for frontend
             "is_main": alt.get('is_main', False),       # Pass through for identification
-            "price_val": price                          # Pass through for display
+            "price_val": price,                          # Pass through for display
+            "eco_score": sentiment_data.get('eco_score', 0.5),  # Environmental friendliness
+            "eco_notes": sentiment_data.get('eco_notes', '')     # Eco explanation
         }
 
     # Execute in parallel
@@ -308,7 +317,13 @@ def node_analysis_synthesis(state: AgentState) -> Dict[str, Any]:
     total_time = time.time() - start_time
     print(f"--- Analysis Node: Total time {total_time:.2f}s ---")
     log_debug("Analysis Node Completed")
+    
+    # Get existing timings and add this node's time
+    existing_timings = state.get('node_timings', {}) or {}
+    existing_timings['analysis'] = total_time
+    
     return {
         "analysis_object": analysis_object, 
-        "alternatives_analysis": alternatives_scored
+        "alternatives_analysis": alternatives_scored,
+        "node_timings": existing_timings
     }

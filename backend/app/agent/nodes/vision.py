@@ -180,6 +180,10 @@ def node_user_intent_vision(state: AgentState) -> Dict[str, Any]:
     total_time = time.time() - start_time
     print(f"--- Vision Node: Total time {total_time:.2f}s ---")
     
+    # Get existing timings and add this node's time
+    existing_timings = state.get('node_timings', {}) or {}
+    existing_timings['vision'] = total_time
+    
     return {
         "product_query": {
             "canonical_name": product_name,
@@ -191,5 +195,6 @@ def node_user_intent_vision(state: AgentState) -> Dict[str, Any]:
             "lens_confidence": confidence,
             "lens_source": source,
         },
-        "bounding_box": [0, 0, 1000, 1000]
+        "bounding_box": [0, 0, 1000, 1000],
+        "node_timings": existing_timings
     }

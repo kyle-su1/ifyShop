@@ -98,14 +98,15 @@ JSON OUTPUT FORMAT:
         "summary": "What are users saying? Lead with positives.",
         "red_flags": {json.dumps(risk_report.get('hidden_flaws', [])[:3])}
     }},
-    "alternatives": [
+    \"alternatives\": [
         {{
-            "name": "Alt Product Name",
-            "score": 0.0 to 100.0,
-            "reason": "Why consider this?",
-            "image": "URL_FROM_DATA",
-            "link": "URL_FROM_DATA",
-            "price_text": "$123.00 CAD"
+            \"name\": \"Alt Product Name\",
+            \"score\": 0.0 to 100.0,
+            \"reason\": \"Why consider this?\",
+            \"image\": \"URL_FROM_DATA\",
+            \"link\": \"URL_FROM_DATA\",
+            \"price_text\": \"$123.00 CAD\",
+            \"eco_score\": 0.0 to 1.0 (environmental friendliness)
         }}
     ]
 }}
@@ -176,7 +177,33 @@ JSON OUTPUT FORMAT:
     total_time = time.time() - start_time
     print(f"--- Response Node: Total time {total_time:.2f}s ---")
     log_debug("Response Node Completed")
-    return {"final_recommendation": final_payload}
+    
+    # Get existing timings and add this node's time
+    existing_timings = state.get('node_timings', {}) or {}
+    existing_timings['response'] = total_time
+    
+    # Calculate Total Runtime (sequential: vision -> research -> scout, parallel: critique||analysis, then response)
+    # Sequential path: vision + research + market_scout + max(critique, analysis) + response
+    vision_time = existing_timings.get('vision', 0)
+    research_time = existing_timings.get('research', 0)
+    scout_time = existing_timings.get('market_scout', 0)
+    critique_time = existing_timings.get('critique', 0)
+    analysis_time = existing_timings.get('analysis', 0)
+    response_time = existing_timings.get('response', 0)
+    
+    # Parallel nodes count as max of the two (they run simultaneously)
+    parallel_time = max(critique_time, analysis_time)
+    total_runtime = vision_time + research_time + scout_time + parallel_time + response_time
+    
+    existing_timings['total'] = total_runtime
+    print(f"=== TOTAL AGENT RUNTIME: {total_runtime:.2f}s ===")
+    print(f"    Vision: {vision_time:.2f}s | Research: {research_time:.2f}s | Scout: {scout_time:.2f}s")
+    print(f"    Critique: {critique_time:.2f}s | Analysis: {analysis_time:.2f}s | Response: {response_time:.2f}s")
+    
+    # Add timing info to final payload for frontend
+    final_payload['timing'] = existing_timings
+    
+    return {"final_recommendation": final_payload, "node_timings": existing_timings}
 
 
 def _build_fallback_response(analysis: dict, alternatives_analysis: list, risk_report: dict) -> dict:

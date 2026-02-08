@@ -2,7 +2,7 @@ from typing import Dict, Any, List
 import time
 from app.agent.state import AgentState
 from app.schemas.types import ProductQuery
-from app.sources.tavily_client import find_review_snippets
+from app.sources.tavily_client import find_review_snippets, search_eco_sustainability
 from app.sources.serpapi_client import get_shopping_offers
 
 def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
@@ -51,6 +51,7 @@ def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
     
     reviews_data = []
     offers_data = []
+    eco_data = {}
     
     def fetch_reviews():
         try:
@@ -80,12 +81,25 @@ def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
             log_debug(f"SerpAPI Error: {e}")
             return []
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    def fetch_eco_data():
+        try:
+            eco_start = time.time()
+            result = search_eco_sustainability(product_name)
+            eco_time = time.time() - eco_start
+            print(f"   ⏱️  [Runner] Eco search took {eco_time:.2f}s")
+            return result
+        except Exception as e:
+            print(f"   [Runner] Eco Search Error: {e}")
+            return {"eco_context": "", "found": False}
+
+    with ThreadPoolExecutor(max_workers=3) as executor:
         future_reviews = executor.submit(fetch_reviews)
         future_prices = executor.submit(fetch_prices)
+        future_eco = executor.submit(fetch_eco_data)
         
         reviews_data = future_reviews.result()
         offers_data = future_prices.result()
+        eco_data = future_eco.result()
 
     # Fallback if no offers found for main product
     if not offers_data:
@@ -109,33 +123,35 @@ def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
         })
         print(f"   [Runner] No direct offers, added fallback link (Image: {'Yes' if fallback_image else 'No'}).")
         
-    # --- PRICE LOGGING ---
+    # --- PRICE LOGGING (Summary Only) ---
     try:
         with open("/app/logs/price_debug.log", "a", encoding="utf-8") as f:
-            for o in offers_data:
-                # Handle cases where 'price_cents' is from PriceOffer.dict()
-                # The fallback above uses 'price': 0 directly, so check both
-                price_cents = o.get('price_cents', 0)
-                if price_cents == 0:
-                    price_cents = o.get('price', 0) * 100  # Fallback may use 'price' in dollars
-                
-                p_val = price_cents / 100.0  # Convert to dollars for display
-                curr = o.get('currency', 'CAD')
-                vendor = o.get('vendor', 'Unknown')
-                url = o.get('url', 'No URL')
-                
-                f.write(f"Product: {product_name} (Main) | Price: {p_val:.2f} {curr} | Vendor: {vendor} | URL: {url}\n")
-    except Exception as log_e:
-        print(f"       -> Logging failed: {log_e}")
+            if offers_data:
+                best_price = offers_data[0].get('price_cents', 0) / 100.0 if offers_data[0].get('price_cents') else 0
+                f.write(f"[Main] {product_name} | {len(offers_data)} offers | Best: ${best_price:.2f} CAD\n")
+    except Exception:
+        pass
     # ---------------------
+    
+    # Calculate total time for this node
+    import time as time_module
+    node_end = time_module.time()
+    # Note: We need to track start time at the beginning of the function
+    # Since parallel tasks are internal, we'll approximate from the task times
+    node_time = max(review_time if 'review_time' in dir() else 0, price_time if 'price_time' in dir() else 0)
+    
+    # Get existing timings and add this node's time  
+    existing_timings = state.get('node_timings', {}) or {}
+    existing_timings['research'] = node_time
     
     # 3. Aggregate Data
     research_data = {
         "search_results": [r['snippet'] for r in reviews_data if 'snippet' in r], # Simplified list for simple prompts
         "reviews": reviews_data, 
         "competitor_prices": offers_data,
+        "eco_data": eco_data,  # Include eco sustainability data
         "trace": trace_log
     }
     
     log_debug("Discovery Node Completed")
-    return {"research_data": research_data}
+    return {"research_data": research_data, "node_timings": existing_timings}

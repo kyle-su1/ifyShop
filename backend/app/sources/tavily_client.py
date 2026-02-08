@@ -162,3 +162,111 @@ def search_market_context(query: str) -> List[Dict[str, str]]:
     except Exception as e:
         print(f"Tavily Market Search Error: {e}")
         return []
+
+
+def search_eco_sustainability(product_name: str) -> Dict[str, any]:
+    """
+    Search for product sustainability and environmental impact info.
+    Returns eco data for the Skeptic agent to evaluate.
+    """
+    # --- Check Cache ---
+    cache_key = f"tavily:eco:{hashlib.md5(product_name.encode()).hexdigest()}"
+    cached_data = snowflake_cache_service.get(cache_key)
+    
+    if cached_data:
+        print(f"   [Eco] Cache hit for {product_name[:30]}")
+        return cached_data
+    # -------------------
+
+    api_key = settings.TAVILY_API_KEY
+    if not api_key:
+        print("   [Eco] No API key!")
+        return {"eco_context": "", "found": False}
+
+    # Simpler, broader eco search query
+    eco_query = f'{product_name} sustainability environmental impact eco-friendly'
+    print(f"   [Eco] Searching: {eco_query[:60]}...")
+
+    payload = {
+        "api_key": api_key,
+        "query": eco_query,
+        "search_depth": "basic",
+        "include_answer": True,
+        "max_results": 5,
+    }
+
+    try:
+        r = requests.post(TAVILY_URL, json=payload, timeout=8)
+        data = r.json()
+        
+        if data.get("error"):
+            print(f"   [Eco] API Error: {data.get('error')}")
+            return {"eco_context": "", "found": False}
+
+        eco_snippets = []
+        
+        # Get AI summary if available
+        if data.get("answer"):
+            eco_snippets.append(f"Summary: {data.get('answer')}")
+            print(f"   [Eco] Got AI summary ({len(data.get('answer'))} chars)")
+
+        # Extract relevant content from results
+        for item in data.get("results", []):
+            content = item.get("content", "")
+            title = item.get("title", "")
+            if content:
+                eco_snippets.append(f"{title}: {content[:300]}")
+        
+        print(f"   [Eco] Found {len(eco_snippets)} eco snippets")
+        
+        # --- Fallback Search Strategy ---
+        if not eco_snippets:
+            # Try a broader search with just the first few words of the product name
+            # e.g., "GLAMBERGET extendable bed" instead of the full 20-word description
+            simple_name = " ".join(product_name.split()[:4])
+            if simple_name != product_name:
+                print(f"   [Eco] Specific search failed. Trying fallback: {simple_name}...")
+                fallback_query = f'{simple_name} material sustainability eco-friendly reviews'
+                
+                payload["query"] = fallback_query
+                try:
+                    r2 = requests.post(TAVILY_URL, json=payload, timeout=8)
+                    data2 = r2.json()
+                    
+                    if not data2.get("error"):
+                         if data2.get("answer"):
+                             eco_snippets.append(f"Summary (Broad): {data2.get('answer')}")
+                         
+                         for item in data2.get("results", []):
+                             title = item.get("title", "")
+                             content = item.get("content", "")
+                             if content:
+                                 eco_snippets.append(f"{title}: {content[:300]}")
+                                 
+                         print(f"   [Eco] Fallback found {len(eco_snippets)} snippets")
+                except Exception as e2:
+                    print(f"   [Eco] Fallback failed: {e2}")
+        # --------------------------------
+
+        eco_context = "\n".join(eco_snippets[:5])  # Limit to 5 snippets
+        
+        result = {
+            "eco_context": eco_context,
+            "found": bool(eco_snippets)
+        }
+        
+        # --- Store in Cache ---
+        if result["found"]:
+            snowflake_cache_service.set(
+                cache_key=cache_key,
+                cache_type="tavily_eco",
+                params={"product": product_name},
+                result=result,
+                ttl_minutes=120  # Cache eco data longer (2 hours)
+            ) 
+        # ----------------------
+        
+        return result
+    except Exception as e:
+        print(f"   [Eco] Search Error: {e}")
+        return {"eco_context": "", "found": False}

@@ -21,6 +21,8 @@ class ReviewSentiment(BaseModel):
     summary: str = Field(..., description="Concise human-readable summary of the consensus (max 3 sentences)")
     trust_score: float = Field(..., description="0.0 to 10.0 score indicating how trustworthy the reviews are (10=authentic, 0=fake/bot)")
     sentiment_score: float = Field(..., description="-1.0 (Negative) to 1.0 (Positive) sentiment score")
+    eco_score: float = Field(0.5, description="0.0 to 1.0 environmental friendliness score (1.0=very eco-friendly, 0.0=harmful)")
+    eco_notes: str = Field("", description="Brief explanation of eco assessment (materials, durability, brand sustainability)")
     red_flags: List[str] = Field(default_factory=list, description="List of suspicious patterns detected (e.g., 'Repetitive phrasing', 'All 5-stars on same day')")
     pros: List[str] = Field(default_factory=list, description="Key advantages mentioned by real users")
     cons: List[str] = Field(default_factory=list, description="Key flaws mentioned by real users")
@@ -48,7 +50,7 @@ class SkepticAgent:
         
         self.parser = PydanticOutputParser(pydantic_object=ReviewSentiment)
 
-    def analyze_reviews(self, product_name: str, reviews: List[Review]) -> ReviewSentiment:
+    def analyze_reviews(self, product_name: str, reviews: List[Review], eco_context: str = "") -> ReviewSentiment:
         """
         Analyzes a list of reviews to determine authenticity and sentiment.
         """
@@ -93,9 +95,37 @@ SCORING GUIDELINES:
   - 0-3: Clear evidence of manipulation
 - Sentiment Score (-1 to 1): Weighted average of review sentiment.
 
+ENVIRONMENTAL FRIENDLINESS (eco_score 0-1):
+Evaluate based on:
+1. SUSTAINABILITY RESEARCH DATA (if provided below)
+2. Mentions in reviews about durability/longevity  
+3. Build quality and materials (recyclable, sustainable = higher)
+4. Brand's known sustainability reputation
+5. Packaging and repairability
+
+{eco_section}
+
+Score 0.7+ for clearly eco-conscious products, 0.3 or below for disposable/harmful products.
+Provide a brief eco_notes explanation of your assessment.
+
 BE FAIR. Most products deserve a trust score of 6-8 unless there are clear problems.
 Output the result in the specified JSON format.
 """
+
+        # Add eco research data if available
+        if eco_context:
+            eco_section = f"SUSTAINABILITY DATA FROM RESEARCH:\n{eco_context}"
+        else:
+            eco_section = """No specific sustainability research found. Use YOUR KNOWLEDGE to evaluate eco-friendliness based on:
+- Product materials (wood=renewable, recycled materials=good, single-use plastic=bad)
+- Brand reputation (IKEA, Patagonia, Apple = known sustainability programs)
+- Product category (durable furniture > fast fashion, repairable electronics > disposable)
+- Expected lifespan (longer-lasting products = more eco-friendly)
+
+For this product, consider what you know about the brand and materials mentioned in the product name or reviews.
+DO NOT default to 0.5 - make an educated assessment based on product type."""
+        
+        system_prompt = system_prompt.replace("{eco_section}", eco_section)
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),

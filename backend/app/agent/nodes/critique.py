@@ -98,5 +98,13 @@ def node_skeptic_critique(state: AgentState) -> Dict[str, Any]:
             "hidden_flaws": ["Could not analyze risks due to error"]
         }
     
+    total_time = time.time() - start_time
+    print(f"--- Critique Node: Total time {total_time:.2f}s ---")
+    
     log_debug("Critique Node Completed")
-    return {"risk_report": risk_report}
+    
+    # Get existing timings and add this node's time
+    existing_timings = state.get('node_timings', {}) or {}
+    existing_timings['critique'] = total_time
+    
+    return {"risk_report": risk_report, "node_timings": existing_timings}

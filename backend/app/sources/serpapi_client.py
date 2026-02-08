@@ -32,6 +32,7 @@ def get_shopping_offers(product: ProductQuery, trace: list) -> List[PriceOffer]:
         "gl": "ca",
         "hl": "en",
         "location": "Canada",
+        "num": 10,  # Limit results to 10 to reduce processing time
         "api_key": api_key,
     }
 

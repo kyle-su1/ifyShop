@@ -11,6 +11,17 @@ from app.agent.nodes import (
 )
 from app.agent.nodes.router import node_router
 from app.agent.nodes.chat import node_chat
+from typing import Dict, Any
+
+# Merge node to combine parallel outputs from Critique and Analysis
+def node_merge_parallel(state: AgentState) -> Dict[str, Any]:
+    """
+    Simple pass-through node that waits for both parallel branches.
+    The state already contains risk_report and analysis_object from the parallel nodes.
+    """
+    print("--- Merge Node: Combining Critique + Analysis outputs ---")
+    # Just return empty dict - state already has what we need
+    return {}
 
 # 1. Define the Graph
 workflow = StateGraph(AgentState)
@@ -23,6 +34,7 @@ workflow.add_node("market_scout_node", node_market_scout)
 workflow.add_node("chat_node", node_chat)
 workflow.add_node("skeptic_node", node_skeptic_critique)
 workflow.add_node("analysis_node", node_analysis_synthesis)
+workflow.add_node("merge_node", node_merge_parallel)
 workflow.add_node("response_node", node_response_formulation)
 
 # 3. Define Edges (The Flow)
@@ -100,14 +112,17 @@ workflow.add_conditional_edges(
 # Research -> Market Scout
 workflow.add_edge("research_node", "market_scout_node")
 
-# Market Scout -> Skeptic
+# Market Scout -> PARALLEL: Skeptic AND Analysis
+# Both nodes run simultaneously after Market Scout
 workflow.add_edge("market_scout_node", "skeptic_node")
+workflow.add_edge("market_scout_node", "analysis_node")
 
-# Skeptic -> Analysis
-workflow.add_edge("skeptic_node", "analysis_node")
+# Both parallel branches -> Merge Node
+workflow.add_edge("skeptic_node", "merge_node")
+workflow.add_edge("analysis_node", "merge_node")
 
-# Analysis -> Response
-workflow.add_edge("analysis_node", "response_node")
+# Merge -> Response
+workflow.add_edge("merge_node", "response_node")
 
 # Response -> End
 workflow.add_edge("response_node", END)

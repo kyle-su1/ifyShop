@@ -196,7 +196,7 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
             query_vector = embeddings.embed_query(enhanced_query)
             
             # Search Snowflake
-            vector_results = snowflake_vector_service.search_similar_products(query_vector, limit=3)
+            vector_results = snowflake_vector_service.search_similar_products(query_vector, limit=2)
             
             if vector_results:
                 print(f"   [Scout] Found {len(vector_results)} matches in Snowflake.")
@@ -288,13 +288,13 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
                             for p in valid_offers
                         ]
                         
-                        # --- PRICE LOGGING ---
+                        # --- PRICE LOGGING (Summary Only) ---
                         try:
                             with open("/app/logs/price_debug.log", "a", encoding="utf-8") as f:
-                                for p in valid_offers:
-                                    f.write(f"Product: {name} | Price: {p.price_cents/100:.2f} {p.currency} | Vendor: {p.vendor} | URL: {p.url}\n")
-                        except Exception as log_e:
-                            print(f"       -> Logging failed: {log_e}")
+                                best_p = price_offers[0].price_cents / 100 if price_offers else 0
+                                f.write(f"[Alt] {name} | {len(price_offers)} offers | Best: ${best_p:.2f} CAD\n")
+                        except Exception:
+                            pass
                         # ---------------------
                         
                         if valid_offers:
@@ -344,22 +344,18 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
                             cand['image_url'] = cand.get('image_url') or "https://via.placeholder.com/150?text=No+Image" # Placeholder if no image
                             print(f"       -> {name}: No direct offers, using fallback link/image.")
 
-                        # Get reviews
-                        review_snippets = find_review_snippets(temp_query, temp_trace)
-                        cand['reviews'] = [
-                            {"source": r.source, "snippet": r.snippet, "url": r.url}
-                            for r in review_snippets
-                        ]
-                        print(f"       -> {name}: {len(review_snippets)} reviews found")
+                        # Skip reviews for alternatives - the LLM already captured why each is recommended
+                        # This saves ~3-4s per candidate by removing the Tavily API call
+                        cand['reviews'] = []
                         
                     except Exception as inner_e:
                         print(f"       -> Error enriching {name}: {inner_e}")
 
-                # Run enrichment in parallel, limit to 3 to avoid API rate limits
-                # Latency Optimization: Limit to top 3 candidates total to prevent massive fan-out
+                # Run enrichment in parallel, limit to 2 to avoid API rate limits
+                # Latency Optimization: Limit to top 2 candidates total to prevent massive fan-out
                 enrichment_start = time.time()
-                candidates_to_process = candidates[:3]
-                with ThreadPoolExecutor(max_workers=3) as executor:
+                candidates_to_process = candidates[:2]
+                with ThreadPoolExecutor(max_workers=2) as executor:
                     futures = [executor.submit(enrich_candidate, cand) for cand in candidates_to_process]
                     for future in as_completed(futures):
                         try:
@@ -395,10 +391,16 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
     total_time = time.time() - start_time
     print(f"--- Market Scout Node: Total time {total_time:.2f}s ---")
     log_debug("Market Scout Node Completed")
+    
+    # Get existing timings and add this node's time
+    existing_timings = state.get('node_timings', {}) or {}
+    existing_timings['market_scout'] = total_time
+    
     return {
         "market_scout_data": {
             "strategy": search_modifiers[0],
             "raw_search_results": unique_results,
-            "candidates": candidates
-        }
+            "candidates": candidates[:2]  # Only return enriched candidates
+        },
+        "node_timings": existing_timings
     }
