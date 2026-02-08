@@ -86,7 +86,7 @@ def identify_product_with_lens(image_bytes: bytes, extension: str = "jpg") -> Di
         
         log_debug(f"Image stored: {public_url}")
         
-        # Call SerpAPI Lens
+        # Call SerpAPI Lens with retry
         params = {
             "engine": "google_lens",
             "url": public_url,
@@ -95,14 +95,32 @@ def identify_product_with_lens(image_bytes: bytes, extension: str = "jpg") -> Di
             "country": "ca"
         }
         
-        lens_start = time.time()
-        response = requests.get(
-            "https://serpapi.com/search.json",
-            params=params,
-            timeout=60
-        )
-        lens_time = time.time() - lens_start
-        log_debug(f"Lens API call took {lens_time:.2f}s")
+        # Retry logic for connection issues
+        max_retries = 3
+        response = None
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                lens_start = time.time()
+                response = requests.get(
+                    "https://serpapi.com/search.json",
+                    params=params,
+                    timeout=60
+                )
+                lens_time = time.time() - lens_start
+                log_debug(f"Lens API call took {lens_time:.2f}s (attempt {attempt + 1})")
+                break  # Success, exit retry loop
+            except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
+                last_error = e
+                log_debug(f"Lens connection error (attempt {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(1 * (attempt + 1))  # Exponential backoff
+                continue
+        
+        if response is None:
+            log_debug(f"Lens API failed after {max_retries} retries: {last_error}")
+            return {"error": f"Connection failed after {max_retries} retries"}
         
         if response.status_code != 200:
             log_debug(f"Lens API error: {response.status_code}")
@@ -131,12 +149,16 @@ def identify_product_with_lens(image_bytes: bytes, extension: str = "jpg") -> Di
         # Try visual_matches
         if not product_name and "visual_matches" in results:
             vm = results["visual_matches"]
+            # Log top 5 matches for debugging
+            log_debug(f"Visual matches ({len(vm)} total):")
+            for i, match in enumerate(vm[:5]):
+                log_debug(f"  #{i+1}: {match.get('title', 'No title')} (source: {match.get('source', '?')})")
             if vm:
                 product_name = vm[0].get("title")
                 confidence = 0.8
                 source = vm[0].get("source", "visual_matches")
                 link = vm[0].get("link")
-                log_debug(f"Visual match: {product_name}")
+                log_debug(f"Visual match selected: {product_name}")
         
         # Try shopping_results
         if not product_name and "shopping_results" in results:

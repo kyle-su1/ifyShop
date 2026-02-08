@@ -56,37 +56,47 @@ def node_response_formulation(state: AgentState) -> Dict[str, Any]:
     
     # Extract key metrics for prompt context
     trust_score = risk_report.get('trust_score', 5.0)
+    match_score = analysis.get('match_score', 50)
     
-    prompt = f"""You are a friendly, empathetic shopping assistant. 
-Your goal is to populate the dashboard with a final analysis.
+    prompt = f"""You are a friendly, helpful shopping assistant.
+Your goal is to help the user make a confident purchase decision.
 
 === MAIN PRODUCT ===
 Name: {analysis.get('recommended_product', 'Unknown')}
+Match Score: {match_score}/100
 Details: {json.dumps(analysis, indent=2)}
 Risk Report: {json.dumps(risk_report, indent=2)}
 
 === ALTERNATIVES & COMPETITORS (Data) ===
 {json.dumps(products_detail, indent=2)}
 
-=== YOUR TASK ===
-Generate a JSON object strictly matching the following schema. 
-Do not include Markdown. The root keys must trigger the specific frontend visualizers.
-IMPORTANT: You MUST copy the 'image' and 'link' fields from the 'ALTERNATIVES & COMPETITORS' data exactly as provided into your output.
+=== DECISION GUIDELINES ===
+Choose the outcome based on match_score:
+- "highly_recommended": Score >= 70 OR trust_score >= 7 (this is a solid choice!)
+- "recommended": Score 50-69 (good option with minor caveats)
+- "consider_alternatives": Score < 50 AND trust_score < 5 (significant concerns exist)
 
-STRICT JSON OUTPUT FORMAT:
+BE ENCOURAGING when the product is decent. Most products work fine for most users.
+Only use "consider_alternatives" if there are MAJOR red flags or the score is truly low.
+
+=== YOUR TASK ===
+Generate a JSON object strictly matching the schema below.
+IMPORTANT: Copy 'image' and 'link' fields from the data above exactly as provided.
+
+JSON OUTPUT FORMAT:
 {{
-    "outcome": "highly_recommended" OR "consider_alternatives",
-    "identified_product": "The specific product name identified",
-    "summary": "2-3 sentences. Is this a buy or pass? Explain why.",
+    "outcome": "highly_recommended" OR "recommended" OR "consider_alternatives",
+    "identified_product": "The specific product name",
+    "summary": "2-3 positive, helpful sentences. Focus on what the product does well first, then any minor caveats.",
     "price_analysis": {{
         "price_score": 0.0 to 1.0 (1.0 = great value),
-        "verdict": "Good Deal / Overpriced / Standard",
+        "verdict": "Good Deal / Fair Price / Premium",
         "details": "Price context vs market"
     }},
     "community_sentiment": {{
         "trust_score": {trust_score},
-        "summary": "What are users saying?",
-        "red_flags": {json.dumps(risk_report.get('hidden_flaws', []))}
+        "summary": "What are users saying? Lead with positives.",
+        "red_flags": {json.dumps(risk_report.get('hidden_flaws', [])[:3])}
     }},
     "alternatives": [
         {{

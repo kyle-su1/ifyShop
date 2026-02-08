@@ -54,13 +54,13 @@ class SkepticAgent:
         """
         if not reviews:
              return ReviewSentiment(
-                 summary="No reviews provided for analysis.",
-                 trust_score=0.0,
+                 summary="No reviews available for analysis.",
+                 trust_score=5.0,  # Neutral, not suspicious
                  sentiment_score=0.0,
-                 red_flags=["Insufficient data"],
+                 red_flags=[],
                  pros=[],
                  cons=[],
-                 verdict="Insufficent Data"
+                 verdict="Needs more reviews"
              )
 
         # Format reviews for the prompt
@@ -68,22 +68,32 @@ class SkepticAgent:
             [f"Source: {r.source}\nRating: {r.rating}/5\nDate: {r.date}\nContent: {r.text}" for r in reviews]
         )
         
-        system_prompt = """You are 'The Skeptic', an expert product analyst and fraud detector. 
-Your goal is to analyze product reviews to filter out noise, marketing fluff, and fake/paid inclusions.
-You must determine the *true* quality of the product {product_name} based on the provided reviews.
+        system_prompt = """You are 'The Skeptic', a fair and balanced product analyst.
+Your goal is to analyze product reviews and provide an honest assessment of {product_name}.
 
-Your analysis must be critical. Do not just summarize; evaluate the CREDIBILITY of the reviews.
+Be BALANCED in your analysis - look for both genuine positives AND legitimate concerns.
+Most products have both pros and cons. Your job is to surface them fairly, not to be pessimistic.
 
-LOOK FOR RED FLAGS:
-- Vague, generic praise ("Great product", "Love it") without details.
-- Repetitive sentence structures across different user names.
-- A sudden influx of 5-star reviews in a short time period.
-- Mismatches between the rating and the text.
+CONSIDER THESE FACTORS:
+- Detailed, specific reviews (positive OR negative) are more trustworthy than vague ones.
+- A mix of ratings (some 5-star, some 3-star) is normal and healthy.
+- Look for consistent themes across multiple reviews.
+- New products may have fewer reviews - this is not automatically suspicious.
 
-SCORING:
-- Trust Score (0-10): punish severely for red flags. 10 is reserved for established products with nuanced, verifiable user feedback.
-- Sentiment Score (-1 to 1): The weighted average feeling of the *trustworthy* reviews.
+RED FLAGS (only flag if clearly present):
+- Obvious fake reviews with identical phrasing copy-pasted.
+- Extreme mismatch between rating and text (5 stars but complaining).
+- Clear evidence of paid/incentivized reviews stated in the text.
 
+SCORING GUIDELINES:
+- Trust Score (0-10): Start at 7 as baseline for normal products. Deduct for clear red flags, add for detailed authentic feedback.
+  - 8-10: Well-reviewed, authentic feedback with specifics
+  - 6-7: Normal product with typical review mix  
+  - 4-5: Some concerns but usable feedback
+  - 0-3: Clear evidence of manipulation
+- Sentiment Score (-1 to 1): Weighted average of review sentiment.
+
+BE FAIR. Most products deserve a trust score of 6-8 unless there are clear problems.
 Output the result in the specified JSON format.
 """
 
