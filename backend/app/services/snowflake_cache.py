@@ -16,12 +16,47 @@ class SnowflakeCacheService:
     def generate_key(self, product_name: str) -> str:
         """
         Generate a safe cache key using SHA-256 hash.
-        This ensures a fixed 64-char output that fits VARCHAR(64).
+        ULTRA-AGGRESSIVE normalization to handle Lens returning different languages/details.
         """
         import hashlib
+        import re
+        
         normalized = product_name.lower().strip()
+        
+        # Remove common variable parts
+        # 1. Remove anything in parentheses
+        normalized = re.sub(r'\([^)]*\)', '', normalized)
+        
+        # 2. Remove storage specs (256GB, 128 GB, 1TB)
+        normalized = re.sub(r'\b\d+\s*(gb|tb|mb)\b', '', normalized, flags=re.IGNORECASE)
+        
+        # 3. Remove model numbers (A2482, SM-G998U)
+        normalized = re.sub(r'\b[A-Z]{1,3}\d{3,}[A-Z]*/?\w*\b', '', normalized, flags=re.IGNORECASE)
+        
+        # 4. Remove common suffixes
+        normalized = re.sub(r'\b(unlocked|renewed|refurbished|certified|pre-owned)\b', '', normalized, flags=re.IGNORECASE)
+        
+        # 5. Remove numbers (oz, ml, pack sizes, etc.)
+        normalized = re.sub(r'\b\d+\.?\d*\s*(oz|ounce|ml|l|pack|ct|count|bottles?|bouteilles?)\b', '', normalized, flags=re.IGNORECASE)
+        normalized = re.sub(r'\b\d+\b', '', normalized)  # Remove standalone numbers
+        
+        # 6. Remove non-ASCII chars (handles accented chars from French/Spanish)
+        normalized = re.sub(r'[^\x00-\x7F]+', '', normalized)
+        
+        # 7. Remove extra whitespace and punctuation
+        normalized = re.sub(r'[^\w\s]', ' ', normalized)
+        normalized = re.sub(r'\s+', ' ', normalized).strip()
+        
+        # 8. CRITICAL: Keep only the first 4 words (brand + product type)
+        words = normalized.split()[:4]
+        normalized = ' '.join(words)
+        
+        print(f"[CacheKey] Original: '{product_name[:50]}...' -> Core: '{normalized}'")
+        
         hash_digest = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
         return hash_digest  # 64 hex chars
+
+
 
     def get(self, cache_key: str) -> Optional[Dict[str, Any]]:
         """
@@ -72,9 +107,16 @@ class SnowflakeCacheService:
             return False
 
         try:
-            # Escape single quotes for SQL
-            params_str = json.dumps(params).replace("'", "''")
-            result_str = json.dumps(result).replace("'", "''")
+            # CRITICAL: Properly escape for SQL and ensure no newlines break PARSE_JSON
+            # 1. Serialize to JSON with ensure_ascii to handle unicode
+            # 2. Replace newlines with escaped versions
+            # 3. Escape single quotes for SQL string
+            params_json = json.dumps(params, ensure_ascii=True, separators=(',', ':'))
+            result_json = json.dumps(result, ensure_ascii=True, separators=(',', ':'))
+            
+            # Replace actual newlines with escaped newlines (for multi-line strings in values)
+            params_str = params_json.replace('\n', '\\n').replace('\r', '\\r').replace("'", "''")
+            result_str = result_json.replace('\n', '\\n').replace('\r', '\\r').replace("'", "''")
             
             # Safe MERGE query
             query = f"""
