@@ -1,5 +1,93 @@
 import { useState, useRef, useEffect } from 'react';
 
+// Simple markdown formatter for AI responses
+const formatMessage = (content) => {
+    if (!content) return null;
+
+    // Split by line breaks first
+    const lines = content.split('\n');
+
+    return lines.map((line, lineIdx) => {
+        // Handle bullet points
+        if (line.trim().startsWith('- ') || line.trim().startsWith('• ')) {
+            const bulletContent = line.trim().substring(2);
+            return (
+                <div key={lineIdx} className="flex items-start gap-2 ml-2">
+                    <span className="text-indigo-400 mt-0.5">•</span>
+                    <span>{formatInlineStyles(bulletContent)}</span>
+                </div>
+            );
+        }
+
+        // Handle numbered lists
+        const numberedMatch = line.trim().match(/^(\d+)\.\s+(.*)$/);
+        if (numberedMatch) {
+            return (
+                <div key={lineIdx} className="flex items-start gap-2 ml-2">
+                    <span className="text-indigo-400 font-medium min-w-[1rem]">{numberedMatch[1]}.</span>
+                    <span>{formatInlineStyles(numberedMatch[2])}</span>
+                </div>
+            );
+        }
+
+        // Regular line
+        if (line.trim() === '') {
+            return <div key={lineIdx} className="h-2" />; // Empty line spacer
+        }
+
+        return <div key={lineIdx}>{formatInlineStyles(line)}</div>;
+    });
+};
+
+// Format inline styles: **bold**, *italic*, `code`
+const formatInlineStyles = (text) => {
+    if (!text) return text;
+
+    const parts = [];
+    let remaining = text;
+    let key = 0;
+
+    while (remaining.length > 0) {
+        // Check for **bold**
+        const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+        // Check for *italic*
+        const italicMatch = remaining.match(/\*([^*]+)\*/);
+        // Check for `code`
+        const codeMatch = remaining.match(/`([^`]+)`/);
+
+        // Find the earliest match
+        const matches = [
+            { type: 'bold', match: boldMatch, pattern: /\*\*(.+?)\*\*/ },
+            { type: 'italic', match: italicMatch, pattern: /\*([^*]+)\*/ },
+            { type: 'code', match: codeMatch, pattern: /`([^`]+)`/ }
+        ].filter(m => m.match).sort((a, b) => a.match.index - b.match.index);
+
+        if (matches.length === 0) {
+            parts.push(remaining);
+            break;
+        }
+
+        const first = matches[0];
+        const beforeMatch = remaining.substring(0, first.match.index);
+        if (beforeMatch) {
+            parts.push(beforeMatch);
+        }
+
+        const content = first.match[1];
+        if (first.type === 'bold') {
+            parts.push(<strong key={key++} className="font-semibold text-white">{content}</strong>);
+        } else if (first.type === 'italic') {
+            parts.push(<em key={key++} className="italic text-gray-300">{content}</em>);
+        } else if (first.type === 'code') {
+            parts.push(<code key={key++} className="px-1.5 py-0.5 bg-black/40 text-indigo-300 rounded text-xs font-mono">{content}</code>);
+        }
+
+        remaining = remaining.substring(first.match.index + first.match[0].length);
+    }
+
+    return parts.length > 0 ? parts : text;
+};
+
 const ChatInterface = ({
     imageBase64,
     onBoundingBoxUpdate,
@@ -104,6 +192,8 @@ const ChatInterface = ({
                                                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                                                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                                             </div>
+                                        ) : msg.role === 'assistant' ? (
+                                            formatMessage(msg.content)
                                         ) : (
                                             msg.content
                                         )}
