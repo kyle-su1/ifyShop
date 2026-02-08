@@ -4,6 +4,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from app.core.config import settings
 import json
 import logging
+from app.services.snowflake_cache import snowflake_cache_service
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -212,6 +213,34 @@ JSON OUTPUT FORMAT:
     
     # Add timing info to final payload for frontend
     final_payload['timing'] = existing_timings
+
+    # --- Snowflake Caching ---
+    try:
+        # Cache the result for 24 hours (1440 mins)
+        # CRITICAL: Use the 'canonical_name' from product_query if available.
+        # This matches the key used in agent.py (which uses Lens result).
+        # We fallback to 'identified_product' only if canonical_name is missing.
+        product_query = state.get('product_query', {})
+        product_name = product_query.get('canonical_name') or final_payload.get('identified_product', 'unknown')
+        
+        if product_name and product_name != 'unknown':
+            cache_key = snowflake_cache_service.generate_key(product_name)
+            print(f"   [Response] Saving to Snowflake Cache: {cache_key}")
+            
+            # Use a sanitized version of state for params if needed, or just basic info
+            cache_params = {"product": product_name, "model": settings.MODEL_RESPONSE}
+            
+            success = snowflake_cache_service.set(
+                cache_key=cache_key,
+                cache_type="product_analysis",
+                params=cache_params,
+                result=final_payload,
+                ttl_minutes=1440 
+            )
+            print(f"   [Response] Cache Write Success: {success}")
+    except Exception as e:
+        print(f"   [Response] Cache Save Error: {e}")
+    # -------------------------
     
     return {"final_recommendation": final_payload, "node_timings": existing_timings}
 

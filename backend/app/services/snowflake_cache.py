@@ -8,7 +8,20 @@ logger = logging.getLogger(__name__)
 class SnowflakeCacheService:
     @property
     def session(self):
-        return get_snowflake_session()
+        s = get_snowflake_session()
+        if not s:
+            print("!!! SNOWFLAKE SESSION IS NONE !!! Check credentials.")
+        return s
+
+    def generate_key(self, product_name: str) -> str:
+        """
+        Generate a safe cache key using SHA-256 hash.
+        This ensures a fixed 64-char output that fits VARCHAR(64).
+        """
+        import hashlib
+        normalized = product_name.lower().strip()
+        hash_digest = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
+        return hash_digest  # 64 hex chars
 
     def get(self, cache_key: str) -> Optional[Dict[str, Any]]:
         """

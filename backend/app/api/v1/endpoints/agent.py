@@ -169,6 +169,7 @@ async def chat_analyze(request: ChatAnalyzeRequest, current_user: User = Depends
     from langchain_core.messages import HumanMessage
     from app.services.image_crop import crop_to_bounding_box
     from app.services.lens_identify import identify_product_with_lens
+    from app.services.snowflake_cache import snowflake_cache_service
     
     print(f"\n[ChatAnalyze] Query: {request.user_query}")
     
@@ -250,34 +251,89 @@ Return ONLY valid JSON, no markdown."""
         print(f"[ChatAnalyze] Lens ID: {product_name}")
         
         # =====================================================
-        # STEP 3: Invoke full agent workflow
+        # STEP 2b: Check Snowflake Cache
         # =====================================================
-        from app.agent.graph import agent_app
-        import uuid
-        
-        initial_state = {
-            "user_query": f"Find the best deals for: {product_name}",
-            "image_base64": base64_data,
-            "user_preferences": {},
-            "user_id": str(current_user.id), # Authenticated User ID
-            "product_query": {
-                "canonical_name": product_name,
-                "detected_objects": [{
-                    "name": product_name,
-                    "bounding_box": bbox,
-                    "lens_result": lens_result
-                }],
-                "context": "User identified via chat + Lens"
-            },
-            "skip_vision": True  # Skip vision node, we already have product
-        }
-        
-        # Generate unique thread_id (required by MemorySaver)
-        thread_id = str(uuid.uuid4())
-        config = {"configurable": {"thread_id": thread_id}}
-        
-        final_state = await agent_app.ainvoke(initial_state, config=config)
-        full_result = final_state.get("final_recommendation", {})
+        cached_result = None
+        if product_name and product_name != "Unknown":
+            cache_key = snowflake_cache_service.generate_key(product_name)
+            print(f"[ChatAnalyze] Checking cache for: {cache_key}")
+            cached_result = snowflake_cache_service.get(cache_key)
+            print(f"[ChatAnalyze] Cache Get Result: {'HIT' if cached_result else 'MISS'}")
+            print(f"[ChatAnalyze] Cache Get Result: {'HIT' if cached_result else 'MISS'}")
+            
+        if cached_result:
+            try:
+                print(f"[ChatAnalyze] CACHE HIT! Processing stored analysis.")
+                if not isinstance(cached_result, dict):
+                    raise ValueError(f"Cached result is not a dict: {type(cached_result)}")
+                
+                full_result = cached_result
+                
+                # Inject current specific vision data into the cached result 
+                if 'active_product' in full_result and isinstance(full_result['active_product'], dict):
+                     full_result['active_product']['bounding_box'] = bbox
+                     full_result['active_product']['detected_objects'] = [{
+                        "name": product_name, 
+                        "bounding_box": bbox,
+                        "lens_result": lens_result
+                     }]
+                
+                # Synthesize final state wrapper for response formatting
+                import uuid
+                thread_id = str(uuid.uuid4()) # Fake thread ID for cache hit
+                
+                final_state = {
+                    "final_recommendation": full_result,
+                    "market_scout_data": {}, 
+                    "research_data": {},
+                    "risk_report": {},
+                    "analysis_object": {},
+                    "product_query": {
+                        "canonical_name": product_name,
+                        "detected_objects": [{
+                            "name": product_name,
+                            "bounding_box": bbox,
+                            "lens_result": lens_result
+                        }],
+                        "context": "User identified via chat + Lens"
+                    }
+                }
+            except Exception as e:
+                print(f"[ChatAnalyze] Error processing cache hit: {e}")
+                cached_result = None # Fallback to miss
+                
+        if not cached_result:
+            print(f"[ChatAnalyze] Cache Miss (or Error). Invoking full agent workflow.")
+            
+            # =====================================================
+            # STEP 3: Invoke full agent workflow
+            # =====================================================
+            from app.agent.graph import agent_app
+            import uuid
+            
+            initial_state = {
+                "user_query": f"Find the best deals for: {product_name}",
+                "image_base64": base64_data,
+                "user_preferences": {},
+                "user_id": str(current_user.id), # Authenticated User ID
+                "product_query": {
+                    "canonical_name": product_name,
+                    "detected_objects": [{
+                        "name": product_name,
+                        "bounding_box": bbox,
+                        "lens_result": lens_result
+                    }],
+                    "context": "User identified via chat + Lens"
+                },
+                "skip_vision": True  # Skip vision node, we already have product
+            }
+            
+            # Generate unique thread_id (required by MemorySaver)
+            thread_id = str(uuid.uuid4())
+            config = {"configurable": {"thread_id": thread_id}}
+            
+            final_state = await agent_app.ainvoke(initial_state, config=config)
+            full_result = final_state.get("final_recommendation", {})
         
         print(f"[ChatAnalyze] Pipeline complete. Outcome: {full_result.get('outcome', 'unknown')}")
         
@@ -297,7 +353,7 @@ Return ONLY valid JSON, no markdown."""
         
         # Build session state for follow-ups (includes data needed for re-analysis)
         session_state = {
-            "product_query": initial_state.get("product_query"),
+            "product_query": final_state.get("product_query"),
             "market_scout_data": final_state.get("market_scout_data"),
             "research_data": final_state.get("research_data"),
             "risk_report": final_state.get("risk_report"),
