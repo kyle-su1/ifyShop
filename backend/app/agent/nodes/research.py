@@ -2,7 +2,7 @@ from typing import Dict, Any, List
 import time
 from app.agent.state import AgentState
 from app.schemas.types import ProductQuery
-from app.sources.tavily_client import find_review_snippets
+from app.sources.tavily_client import find_review_snippets, search_eco_sustainability
 from app.sources.serpapi_client import get_shopping_offers
 
 def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
@@ -51,6 +51,7 @@ def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
     
     reviews_data = []
     offers_data = []
+    eco_data = {}
     
     def fetch_reviews():
         try:
@@ -80,12 +81,25 @@ def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
             log_debug(f"SerpAPI Error: {e}")
             return []
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    def fetch_eco_data():
+        try:
+            eco_start = time.time()
+            result = search_eco_sustainability(product_name)
+            eco_time = time.time() - eco_start
+            print(f"   ⏱️  [Runner] Eco search took {eco_time:.2f}s")
+            return result
+        except Exception as e:
+            print(f"   [Runner] Eco Search Error: {e}")
+            return {"eco_context": "", "found": False}
+
+    with ThreadPoolExecutor(max_workers=3) as executor:
         future_reviews = executor.submit(fetch_reviews)
         future_prices = executor.submit(fetch_prices)
+        future_eco = executor.submit(fetch_eco_data)
         
         reviews_data = future_reviews.result()
         offers_data = future_prices.result()
+        eco_data = future_eco.result()
 
     # Fallback if no offers found for main product
     if not offers_data:
@@ -134,6 +148,7 @@ def node_discovery_runner(state: AgentState) -> Dict[str, Any]:
         "search_results": [r['snippet'] for r in reviews_data if 'snippet' in r], # Simplified list for simple prompts
         "reviews": reviews_data, 
         "competitor_prices": offers_data,
+        "eco_data": eco_data,  # Include eco sustainability data
         "trace": trace_log
     }
     

@@ -98,14 +98,15 @@ JSON OUTPUT FORMAT:
         "summary": "What are users saying? Lead with positives.",
         "red_flags": {json.dumps(risk_report.get('hidden_flaws', [])[:3])}
     }},
-    "alternatives": [
+    \"alternatives\": [
         {{
-            "name": "Alt Product Name",
-            "score": 0.0 to 100.0,
-            "reason": "Why consider this?",
-            "image": "URL_FROM_DATA",
-            "link": "URL_FROM_DATA",
-            "price_text": "$123.00 CAD"
+            \"name\": \"Alt Product Name\",
+            \"score\": 0.0 to 100.0,
+            \"reason\": \"Why consider this?\",
+            \"image\": \"URL_FROM_DATA\",
+            \"link\": \"URL_FROM_DATA\",
+            \"price_text\": \"$123.00 CAD\",
+            \"eco_score\": 0.0 to 1.0 (environmental friendliness)
         }}
     ]
 }}

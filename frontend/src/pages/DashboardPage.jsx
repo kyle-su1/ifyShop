@@ -312,7 +312,7 @@ const DashboardPage = () => {
                                                             {analysisResult.summary || "No summary available."}
                                                         </p>
 
-                                                        <div className="grid grid-cols-2 gap-4 mb-6">
+                                                        <div className="grid grid-cols-3 gap-4 mb-6">
                                                             <div className="bg-black/20 rounded-lg p-3">
                                                                 <span className="text-[10px] uppercase text-gray-500 tracking-wider">Best Price</span>
                                                                 <div className="flex items-baseline gap-1 mt-1">
@@ -325,6 +325,16 @@ const DashboardPage = () => {
                                                                 <span className="text-[10px] uppercase text-gray-500 tracking-wider">Verdict</span>
                                                                 <div className="mt-1">
                                                                     <span className="text-sm font-medium text-white block truncate">{analysisResult.price_analysis?.verdict || "N/A"}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-green-900/20 rounded-lg p-3 border border-green-500/10">
+                                                                <span className="text-[10px] uppercase text-green-400 tracking-wider flex items-center gap-1">🌱 Eco Score</span>
+                                                                <div className="mt-1">
+                                                                    <span className="text-xl font-bold text-green-300">
+                                                                        {analysisResult.active_product?.eco_score !== undefined
+                                                                            ? `${Math.round(analysisResult.active_product.eco_score * 100)}%`
+                                                                            : "N/A"}
+                                                                    </span>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -368,8 +378,15 @@ const DashboardPage = () => {
                                                             ) : (
                                                                 <div className="w-full h-full flex items-center justify-center text-gray-700 bg-white/5">No Image</div>
                                                             )}
-                                                            <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-xs font-mono text-white border border-white/10">
-                                                                Score: {Math.round(alt.score || 0)}
+                                                            <div className="absolute top-2 right-2 flex gap-1">
+                                                                <span className="bg-black/60 backdrop-blur-md px-2 py-1 rounded text-xs font-mono text-white border border-white/10">
+                                                                    Score: {Math.round(alt.score || 0)}
+                                                                </span>
+                                                                {alt.eco_score !== undefined && (
+                                                                    <span className="bg-green-900/60 backdrop-blur-md px-2 py-1 rounded text-xs font-mono text-green-300 border border-green-500/30" title="Environmental Friendliness">
+                                                                        🌱 {Math.round((alt.eco_score || 0.5) * 100)}%
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         </div>
 

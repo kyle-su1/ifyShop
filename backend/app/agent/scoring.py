@@ -18,14 +18,19 @@ class ProductScore(BaseModel):
     trust_score: float = Field(..., description="0-10 score from Skeptic agent")
     sentiment_score: float = Field(..., description="-1 to 1 sentiment from Reviews")
     price_score: float = Field(..., description="0-1 normalized score (higher is better/cheaper)")
+    eco_score: float = Field(0.5, description="0-1 environmental friendliness score")
     
     # Weighted sub-components
     weighted_price: float = 0.0
     weighted_quality: float = 0.0
     weighted_trust: float = 0.0
+    weighted_eco: float = 0.0
     
     # Final score
     total_score: float = Field(..., description="0-100 final match score")
+    
+    # Store raw price for display
+    price_val: float = 0.0
 
 
 def calculate_price_score(price: float, market_average: float) -> float:
@@ -54,20 +59,24 @@ def calculate_weighted_score(
     sentiment_score: float,  # -1 to 1
     price_val: float,
     market_avg: float,
-    weights: Dict[str, float]
+    weights: Dict[str, float],
+    eco_score: float = 0.5   # 0-1
 ) -> ProductScore:
     """
     Compute final weighted score based on user preferences.
+    Now includes environmental friendliness in the calculation.
     """
     # 1. Normalize Inputs to 0-1 scale
     norm_trust = trust_score / 10.0
     norm_sentiment = (sentiment_score + 1) / 2.0  # Map -1..1 to 0..1
     norm_price = calculate_price_score(price_val, market_avg)
+    norm_eco = max(0.0, min(1.0, eco_score))  # Clamp to 0-1
     
     # 2. Get Weights (default to 0.5 if missing)
     w_price = weights.get("price_sensitivity", 0.5)
     w_quality = weights.get("quality", 0.5)
     w_brand = weights.get("brand_reputation", 0.5)
+    w_eco = weights.get("eco_friendly", 0.3)  # Use existing eco_friendly weight
     
     # 3. Calculate Component Contributions
     # Quality is defined by Sentiment + Trust
@@ -79,20 +88,26 @@ def calculate_weighted_score(
     # Trust/Safety is foundational
     trust_component = norm_trust * w_brand
     
+    # Eco is environmental friendliness
+    eco_component = norm_eco * w_eco
+    
     # 4. Total Score Calculation
-    total_weight = w_price + w_quality + w_brand
+    total_weight = w_price + w_quality + w_brand + w_eco
     if total_weight == 0:
         total_weight = 1.0
         
-    raw_score = (quality_component + price_component + trust_component) / total_weight
+    raw_score = (quality_component + price_component + trust_component + eco_component) / total_weight
     final_score = raw_score * 100
     
     return ProductScore(
         trust_score=trust_score,
         sentiment_score=sentiment_score,
         price_score=norm_price,
+        eco_score=norm_eco,
         weighted_price=price_component,
         weighted_quality=quality_component,
         weighted_trust=trust_component,
-        total_score=round(final_score, 1)
+        weighted_eco=eco_component,
+        total_score=round(final_score, 1),
+        price_val=price_val
     )
