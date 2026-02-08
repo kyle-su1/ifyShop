@@ -206,24 +206,33 @@ def node_analysis_synthesis(state: AgentState) -> Dict[str, Any]:
                 print(f"   [Analysis] Error processing {alt.get('name')}: {exc}")
                 log_debug(f"Error processing {alt.get('name')}: {exc}")
 
-    # Sort by Total Score
+    # Sort by Total Score (for alternatives ranking)
     alternatives_scored.sort(key=lambda x: x['score_details']['total_score'], reverse=True)
     
-    # Top Pick
+    # Find the main product (user's selected item) - this should always be the "recommended_product"
+    main_product = next((a for a in alternatives_scored if a.get('is_main')), None)
+    
+    # Top score (could be main or alternative)
     top_pick = alternatives_scored[0] if alternatives_scored else None
+    
+    # Use main product as the recommended product, fall back to top_pick if no main found
+    display_product = main_product if main_product else top_pick
     
     # 3. Construct Analysis Object
     analysis_object = {
-        "match_score": top_pick['score_details']['total_score'] if top_pick else 0.0,
-        "recommended_product": top_pick['name'] if top_pick else "None",
-        "scoring_breakdown": top_pick['score_details'] if top_pick else {},
+        "match_score": display_product['score_details']['total_score'] if display_product else 0.0,
+        "recommended_product": display_product['name'] if display_product else "None",
+        "scoring_breakdown": display_product['score_details'] if display_product else {},
+        # Flag if a better alternative exists
+        "better_alternative_exists": top_pick and main_product and top_pick['name'] != main_product['name'],
+        "best_alternative": top_pick['name'] if top_pick and main_product and top_pick['name'] != main_product['name'] else None,
         "alternatives_ranked": [
             {
                 "name": a['name'], 
                 "score": a['score_details']['total_score'],
                 "reason": a['reason']
             } 
-            for a in alternatives_scored
+            for a in alternatives_scored if not a.get('is_main')  # Exclude main from alternatives list
         ],
         "applied_preferences": final_weights
     }
