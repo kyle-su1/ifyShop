@@ -1,12 +1,12 @@
-services:
+databases:
   # 1. Managed PostgreSQL (Database)
-  - type: psql
-    name: cxc2026-db
-    env: docker
+  - name: cxc2026-db
     plan: free
     databaseName: cxc2026
     user: cxc_user
+    region: oregon
 
+services:
   # 2. Backend (Docker Service)
   - type: web
     name: cxc2026-backend
@@ -21,7 +21,7 @@ services:
           name: cxc2026-db
           property: connectionString
       - key: OPENAI_API_KEY
-        sync: false  # You will enter this in Render Dashboard
+        sync: false
       - key: TAVILY_API_KEY
         sync: false
       - key: SERPAPI_API_KEY
@@ -39,7 +39,7 @@ services:
       - key: SNOWFLAKE_SCHEMA
         sync: false
 
-  # 3. Frontend (Static Site - Faster & Cheaper than Docker for UI)
+  # 3. Frontend (Node Service serving Static Site)
   - type: web
     name: cxc2026-frontend
     env: node
