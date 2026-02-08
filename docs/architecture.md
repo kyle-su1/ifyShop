@@ -7,35 +7,72 @@
 
 ## 🏗️ Architecture Overview
 
-The system uses a **multi-stage agentic pipeline** orchestrated by **LangGraph**, moving from visual detection to deep market intelligence.
+The system uses a **Two-Stage Pipeline** managed by **LangGraph**.
 
-### **Stage 1: The Eye (Vision & Intent)**
-**Goal**: User uploads an image and asks a question → LLM identifies the target object.
-1.  **POST `/api/v1/agent/chat-analyze`**:
-    *   Sends image + query to **Gemini 2.0 Flash Vision**.
-    *   Identifies target object and returns a **single bounding box**.
-2.  **Frontend**: Highlights the object for user confirmation.
+### Stage 1: Targeted Object Detection (Primary: Chat-Based)
 
-### **Stage 2: Discovery (Research & Scouting)**
-**Goal**: Gather deep market data and find relevant alternatives.
-1.  **Product Researcher**: Searches official pages, reviews (Reddit, YouTube), and pricing (Tavily + SerpAPI).
-2.  **Market Scout**: Performs a **Hybrid Search** (Snowflake Vector Search + Web Search) to find the best alternatives.
+**Goal**: User asks about a specific item → LLM finds and highlights that object.
 
-### **Stage 3: The Brain (Critique & Scoring)**
-**Goal**: Verify authenticity and calculate the value proposition.
-1.  **Skeptic Node**: Detects fake reviews and calculates the **Eco Score**.
-2.  **Autonomous Refinement (Internal Loop)**: If the Skeptic detects "Low Trust" or "Insufficient Data," it triggers a **Veto** and routes back to **Stage 2** with localized search parameters to find better data.
-3.  **Analysis Node**: Applies a **Weighted Scoring** model based on user preferences.
-4.  **Merge Node**: Syncs parallel outputs for final aggregation.
+#### **Option A: Chat-Based Detection (Default)**
+1.  **Frontend uploads image** → Chat panel appears.
+2.  **User asks a question** (e.g., "What is this phone?" or "Where can I buy this keyboard?").
+3.  **POST `/api/v1/agent/chat-analyze`**:
+    *   Sends image + user query to **Gemini 2.0 Flash Vision**.
+    *   LLM identifies the **target object** from the query.
+    *   Returns **single bounding box** for that specific item.
+    *   Returns chat response acknowledging the item.
+4.  **Frontend**: Highlights the targeted object.
+    *   *Latency: ~2-3 seconds.*
 
-### **Stage 4: Interaction (Chat & Response)**
-**Goal**: Communicate results and handle follow-up queries.
-1.  **Response Node**: Generates the final human-like recommendation and verdict.
-2.  **Chat Node**: Extracts new user preferences (e.g., "Find sustainable options") and triggers loops back to Research or Analysis.
+#### **Option B: Bounding Box Detection (Fallback)**
+> Use this mode via "Start Agent Workflow" button for multi-object detection.
 
-### **System Orchestration Flow**
+1.  **Frontend uploads image** to `/api/v1/agent/analyze` (flag: `detect_only=True`).
+2.  **Vision Node (Gemini 2.0 Flash)**:
+    *   Detects **all** objects.
+    *   Returns bounding boxes for each.
+    *   **STOPS execution**.
+3.  **Frontend**: Renders interactive boxes over the image.
+    *   User clicks a box to trigger Stage 2.
+    *   *Latency: ~2 seconds.*
 
-![alt text](image.png)
+### Stage 2: Deep Analysis (On-Demand)
+**Goal**: Analyze a specific product selected by the user.
+1.  **User clicks a bounding box** (Option B) or **chat identifies target** (Option A).
+2.  **On-Demand Identification** (`/api/v1/agent/identify`):
+    *   Crops image to box.
+    *   Uploads to ImgBB.
+    *   Calls **SerpAPI Google Lens**.
+    *   Returns precise product name (e.g., "Keychron Q5 Max").
+3.  **Resume Analysis** (`/api/v1/agent/analyze` - `skip_vision=True`):
+    *   Passes the identified `product_name`.
+    *   **Market Scout Node**: Searches for prices, reviews, and competitors (parallelized).
+    *   **Critique Node**: Checks for fake reviews.
+    *   **Analysis Node**: Scores products based on user preferences.
+    *   **Response Node**: Generates final recommendation.
+
+#### **Flow Diagram (Chat-Based)**
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                   Chat-Based Object Detection                     │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│   1. User Uploads Image + Asks Question                          │
+│      "What is this phone?" or "Where can I buy this?"            │
+│                                                                   │
+│   2. Chat Analysis (Gemini Vision)                               │
+│      ┌─────────────────────────────────────────────────────┐     │
+│      │  Image + Query → Gemini → Target Object + BBox      │     │
+│      │  Time: ~2-3 seconds                                  │     │
+│      └─────────────────────────────────────────────────────┘     │
+│                                                                   │
+│   3. Frontend Highlights Target + Shows Chat Response            │
+│      POST /api/v1/agent/chat-analyze                             │
+│                                                                   │
+│   4. User Clicks Highlighted Object → Deep Analysis (Stage 2)    │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -60,10 +97,8 @@ This phase runs two parallel agents to gather deep data.
 *   **Goal**: Gather comprehensive data on the *specific* product identified.
 *   **Agents**:
     *   **Search Agent**: Uses **Tavily API** to find listings.
-    *   **Sustainability Researcher**: Extracts Brand Name and searches for specific corporate stats (ESG, Net Zero, B Corp).
     *   **Price Checker**: Uses **SerpAPI** for pricing.
-    *   **Sustainability Researcher**: Uses **Tavily** to search for company B Corp status, material sustainability, and ethical manufacturing.
-*   **Caching**: Results cached in Snowflake (Tavily: 1 hour TTL, SerpAPI: 15 min TTL, Eco: 2 hour TTL).
+*   **Caching**: Results cached in Redis (Tavily: 1 hour TTL, SerpAPI: 15 min TTL).
 
 ### **Node 2b: Market Scout (The "Explorer")**
 *   **Input**: Structured Product Query + User Preferences.
@@ -87,9 +122,7 @@ This phase runs two parallel agents to gather deep data.
 *   **Responsibilities**:
     1.  **Fake Review Detection**: Analyze patterns in reviews for the main product.
     2.  **Deal Verification**: Check if the "sale price" is actually a tactic.
-    3.  **Eco-Friendliness Score**: Evaluates sustainability based on materials, repairability, and **Corporate Stats** (gathered in Node 2), assigning an **Eco Score (0.0 - 1.0)**.
-        *   **Criteria**: B Corp certification, use of recycled materials, durability, and company CSR reputation.
-    4.  **Cross-Exam**: Check if the "Alternates" suggested by the Scout hold up to scrutiny.
+    3.  **Cross-Exam**: Check if the "Alternates" suggested by the Scout hold up to scrutiny.
 
 ### **Node 4: Analysis & Synthesis (The "Brain")**
 *   **Input**: Product Data + Contextual Scout Data + Risk Report.
@@ -97,9 +130,8 @@ This phase runs two parallel agents to gather deep data.
 *   **Execution**: Runs **in parallel** with Node 3 (Skeptic). Both outputs are merged before Response node.
 *   **Logic**:
     1.  **Preference Loading**: Retrieves explicit user weights.
-    2.  **Weighted Scoring**: Calculates a final match score (0-100) for each product based on price, quality, trust, and **sustainability**.
-    3.  **Eco-Weighting**: Integrates the `eco_score` weighed by the user's `eco_friendly` preference (default: 0.3 weight).
-    4.  **Ranking**: Sorts all products to determine the best recommendation.
+    2.  **Weighted Scoring**: Calculates a final match score (0-100) for each product based on price, quality, and trust.
+    3.  **Ranking**: Sorts all products to determine the best recommendation.
 
 ### **Node 5: Response Formulation (The "Speaker")**
 *   **Input**: Structured Analysis Object.
@@ -132,8 +164,8 @@ This phase runs two parallel agents to gather deep data.
     *   **Scanning Overlay**: Visual scanning effect during analysis.
     *   **Interactive Bounding Boxes**: Clickable overlays for specific object identification (Google Lens style).
 *   **Right Panel**: **Agent Output & Analysis**.
-    *   **Main Product Card**: High-highlight display of the identified product with Image, Price, Trust Score, **Eco Score** (with evidence tooltip), Verdict, and "Buy Now" button.
-    *   **Alternatives Grid**: Visual grid of recommended alternatives with images, prices, **limit-check Eco Badges**, and "View Item" links.
+    *   **Main Product Card**: High-highlight display of the identified product with Image, Price, Trust Score, Verdict, and "Buy Now" button.
+    *   **Alternatives Grid**: Visual grid of recommended alternatives with images, prices, and "View Item" links.
 
 ### **Interactive Bounding Boxes**
 The frontend (`DashboardPage.jsx`) uses the `detected_objects` list from the API response to render interactive overlays on the **Left Panel**:
@@ -177,7 +209,6 @@ To ensure the analysis runs within strict time limits:
 | **Node 1: Vision** | `gemini-2.0-flash` + Google Lens | Hybrid: Gemini for fast detection (Stage 1), Lens for deep identification (Stage 2). |
 | **Node 2: Research** | N/A (API calls) | Tavily + SerpAPI, no LLM |
 | **Node 2b: Market Scout** | `gemini-2.0-flash` | Fast candidate extraction from search results |
-| **Node 3: Skeptic** | `gemini-2.0-flash` | Deep reasoning for fake review detection and **Eco-Scoring** (B Corp, materials). |
+| **Node 3: Skeptic** | `gemini-2.0-flash` | Deep reasoning for fake review detection |
 | **Node 4: Analysis** | `gemini-2.0-flash` | Complex multi-factor scoring and ranking |
 | **Node 5: Response** | `gemini-2.0-flash` | Fast formatting and data aggregation |
-| **Node 6: Chat** | `gemini-2.0-flash` | Intent classification, preference extraction, and session routing. Technologies: Postgres (preference storage), Snowflake (filtered vector search). |

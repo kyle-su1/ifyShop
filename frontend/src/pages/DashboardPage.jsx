@@ -487,7 +487,7 @@ const DashboardPage = () => {
 
                     {/* Middle Panel: Chat */}
                     <div className={`${isImageCollapsed ? 'lg:col-span-4' : 'lg:col-span-3'} glass-panel rounded-2xl p-1 transition-all duration-500 hover:border-emerald-500/20 animate-fade-in-up overflow-hidden`} style={{ animationDelay: '200ms' }}>
-                        <div className="bg-[#121214] rounded-xl p-4 h-full flex flex-col">
+                        <div className="bg-[#121214] rounded-xl p-4 h-full flex flex-col min-h-0">
                             <h3 className="text-sm font-semibold text-emerald-400/80 uppercase tracking-wider mb-3 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -505,7 +505,7 @@ const DashboardPage = () => {
                                     </svg>
                                 </button>
                             </h3>
-                            <div className="flex-1">
+                            <div className="flex-1 min-h-0">
                                 <ChatInterface
                                     imageBase64={imageBase64}
                                     onAnalysisStart={handleChatAnalyze}

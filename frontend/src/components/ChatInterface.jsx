@@ -133,9 +133,9 @@ const ChatInterface = ({
     };
 
     return (
-        <div className="w-full h-full flex flex-col">
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 border border-white/10 rounded-xl bg-[#0d0d0f]">
+        <div className="w-full h-full flex flex-col min-h-0">
+            {/* Messages Area - scrollable */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 border border-white/10 rounded-xl bg-[#0d0d0f]">
                 {chatMessages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center animate-fade-in">
                         <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-4">
