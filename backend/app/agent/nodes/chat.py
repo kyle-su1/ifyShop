@@ -119,7 +119,9 @@ Return ONLY valid JSON, no markdown."""),
                     cleaned_result = "\n".join(lines[1:-1])
             
             search_criteria = json.loads(cleaned_result)
+            search_criteria = json.loads(cleaned_result)
             logger.info(f"CHAT: Extracted search prefs: {search_criteria}")
+            print(f"[Chat] DEBUG: Extracted search_criteria: {search_criteria}") # User requested log
             
             # If budget was extracted, also save it to new_prefs
             if search_criteria.get('max_budget'):

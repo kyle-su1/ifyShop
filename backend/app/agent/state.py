@@ -62,6 +62,7 @@ class AgentState(TypedDict):
     chat_history: List[dict] # List of messages: {'role': 'user', 'content': '...'}
     router_decision: Optional[str] # 'vision_search', 'chat', 'update_preferences', 'market_scout_search'
     loop_step: Optional[str] # Control flow signal from Chat Node: 'analysis_node', 'market_scout_node', 'end'
+    search_criteria: Optional[dict] # Criteria extracted by Chat for Market Scout
 
     # Control Flags for Two-Stage Pipeline
     detect_only: bool = False # If True, stop after Vision Node
