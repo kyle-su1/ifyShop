@@ -194,7 +194,7 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
             query_vector = embeddings.embed_query(enhanced_query)
             
             # Search Snowflake
-            vector_results = snowflake_vector_service.search_similar_products(query_vector, limit=3)
+            vector_results = snowflake_vector_service.search_similar_products(query_vector, limit=2)
             
             if vector_results:
                 print(f"   [Scout] Found {len(vector_results)} matches in Snowflake.")
@@ -312,22 +312,18 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
                             cand['image_url'] = cand.get('image_url') or "https://via.placeholder.com/150?text=No+Image" # Placeholder if no image
                             print(f"       -> {name}: No direct offers, using fallback link/image.")
 
-                        # Get reviews
-                        review_snippets = find_review_snippets(temp_query, temp_trace)
-                        cand['reviews'] = [
-                            {"source": r.source, "snippet": r.snippet, "url": r.url}
-                            for r in review_snippets
-                        ]
-                        print(f"       -> {name}: {len(review_snippets)} reviews found")
+                        # Skip reviews for alternatives - the LLM already captured why each is recommended
+                        # This saves ~3-4s per candidate by removing the Tavily API call
+                        cand['reviews'] = []
                         
                     except Exception as inner_e:
                         print(f"       -> Error enriching {name}: {inner_e}")
 
-                # Run enrichment in parallel, limit to 3 to avoid API rate limits
-                # Latency Optimization: Limit to top 3 candidates total to prevent massive fan-out
+                # Run enrichment in parallel, limit to 2 to avoid API rate limits
+                # Latency Optimization: Limit to top 2 candidates total to prevent massive fan-out
                 enrichment_start = time.time()
-                candidates_to_process = candidates[:3]
-                with ThreadPoolExecutor(max_workers=3) as executor:
+                candidates_to_process = candidates[:2]
+                with ThreadPoolExecutor(max_workers=2) as executor:
                     futures = [executor.submit(enrich_candidate, cand) for cand in candidates_to_process]
                     for future in as_completed(futures):
                         try:
@@ -367,6 +363,6 @@ def node_market_scout(state: AgentState) -> Dict[str, Any]:
         "market_scout_data": {
             "strategy": search_modifiers[0],
             "raw_search_results": unique_results,
-            "candidates": candidates
+            "candidates": candidates[:2]  # Only return enriched candidates
         }
     }
