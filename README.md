@@ -1,6 +1,6 @@
-# Shopping Suggester (CxC 2026)
+# ifyShop (CxC 2026)
 
-A hackathon project to suggest shopping items via screenshot, scraped reviews, and user preferences.
+Our AI powered multi-agent platform to suggest shopping items via screenshot, scraped reviews, and user preferences.
 
 **Goal**: Visual product analysis, identification, market research, price comparison, and AI-powered Eco Scores.
 
